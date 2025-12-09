@@ -1,3 +1,24 @@
+/**
+ * tools/scaffold-services.mjs
+ *
+ * Use Case:
+ * -----------
+ * This script is designed to quickly scaffold ("generate boilerplate for") multiple NestJS microservices for an e-commerce platform.
+ * 
+ * Each core microservice (such as gateway, auth, user, catalog, order, payment, etc.) will be generated with:
+ *  - A basic controller (with a /health check endpoint)
+ *  - A service class
+ *  - A module definition
+ *  - An entrypoint file (main.ts) that boots the service
+ *  - A service-specific tsconfig.app.json
+ * 
+ * The script ensures the right directory structure exists, and creates all boilerplate TypeScript files needed to start each service.
+ * 
+ * This is especially useful for teams starting a new project or wanting to maintain consistency across many microservices, reducing repetitive manual setup.
+ *
+ * To use: Run this script with Node.js from your monorepo root.
+ */
+
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 

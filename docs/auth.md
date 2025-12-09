@@ -42,5 +42,8 @@ Environment variables are read via `ConfigService`:
 - Add new roles by extending the `UserRole` enum and adjusting seed logic.
 - Plug a different database by replacing the TypeORM configuration in `AppModule`.
 - Implement refresh tokens by adding another entity/table and storing token IDs, then exposing `/auth/refresh`.
+- Federation / SSO: add OAuth/OIDC providers and issue local JWTs after provider login.
+- Device/session tracking: store active sessions with device metadata and revoke on logout.
+- Account protection: add MFA (TOTP/email OTP), lockout on repeated failures, and password history checks.
 
 
