@@ -1,0 +1,122 @@
+# Auth Service
+### Health
+GET http://localhost:3010/auth/health
+
+### Register
+POST http://localhost:3010/auth/register
+Content-Type: application/json
+
+{
+  "email": "alice@example.com",
+  "password": "Passw0rd!",
+  "fullName": "Alice Example",
+  "roles": ["customer"]
+}
+
+### Login
+POST http://localhost:3010/auth/login
+Content-Type: application/json
+
+{
+  "email": "alice@example.com",
+  "password": "Passw0rd!"
+}
+
+### Current User (replace {{token}})
+GET http://localhost:3010/auth/me
+Authorization: Bearer {{token}}
+
+### Change Password
+PATCH http://localhost:3010/auth/password
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "currentPassword": "Passw0rd!",
+  "newPassword": "NewPassw0rd!"
+}
+
+### Admin - List Users
+GET http://localhost:3010/auth/users
+Authorization: Bearer {{adminToken}}
+
+## Gateway
+> All business operations below are routed through the API gateway (`http://localhost:3000`). Do not call downstream services directly from clients.
+
+### Health
+GET http://localhost:3000/health
+
+### Checkout
+POST http://localhost:3000/checkout
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "currency": "INR",
+  "items": [
+    { "productId": "p1", "quantity": 2, "price": 499.5 },
+    { "productId": "p2", "quantity": 1, "price": 899.0 }
+  ],
+  "notes": "Deliver quickly",
+  "paymentProvider": "razorpay"
+}
+
+### Order Summary
+GET http://localhost:3000/orders/{{orderId}}/summary
+Authorization: Bearer {{token}}
+
+### Gateway User APIs
+POST http://localhost:3000/users
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "email": "bob@example.com",
+  "fullName": "Bob Builder",
+  "phoneNumber": "+1-555-0101",
+  "addresses": [
+    {
+      "label": "home",
+      "line1": "221B Baker Street",
+      "city": "London",
+      "country": "UK",
+      "postalCode": "NW16XE",
+      "isDefault": true
+    }
+  ]
+}
+
+GET http://localhost:3000/users
+Authorization: Bearer {{adminToken}}
+
+GET http://localhost:3000/users/{{userId}}
+Authorization: Bearer {{adminToken}}
+
+PATCH http://localhost:3000/users/{{userId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "fullName": "Bob The Builder",
+  "isActive": true
+}
+
+DELETE http://localhost:3000/users/{{userId}}
+Authorization: Bearer {{adminToken}}
+
+### Customer profile via Gateway
+GET http://localhost:3000/me/profile
+Authorization: Bearer {{token}}
+
+PATCH http://localhost:3000/me/profile
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "fullName": "Alice Updated",
+  "preferences": {
+    "language": "en",
+    "currency": "INR"
+  }
+}
+

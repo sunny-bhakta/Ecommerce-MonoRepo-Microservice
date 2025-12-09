@@ -1,0 +1,219 @@
+x-node-base: &node-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  environment: &node-env
+    NODE_ENV: production
+    RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    MONGO_URL: mongodb://mongo:27017/ecommerce
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+    mongo:
+      condition: service_started
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./data/rabbitmq:/var/lib/rabbitmq
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+
+  mongo:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo:/data/db
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "8025:8025"
+
+  notification:
+    build:
+      context: ./services/notification-python
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      EMAIL_PROVIDER_URL: http://mailhog:8025
+      SMS_PROVIDER_URL: https://api.twilio.com
+    ports:
+      - "8080:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  gateway:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: gateway
+      PORT: 3000
+      DATABASE_URL: file:./data/gateway/gateway.db
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data/gateway:/app/data
+
+  auth:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: auth
+      AUTH_PORT: 3010
+      DATABASE_URL: file:./data/auth/auth.db
+    ports:
+      - "3010:3010"
+    volumes:
+      - ./data/auth:/app/data
+
+  user:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: user
+      USER_PORT: 3020
+      DATABASE_URL: file:./data/user/user.db
+    ports:
+      - "3020:3020"
+    volumes:
+      - ./data/user:/app/data
+
+  vendor:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: vendor
+      VENDOR_PORT: 3030
+      DATABASE_URL: file:./data/vendor/vendor.db
+    ports:
+      - "3030:3030"
+    volumes:
+      - ./data/vendor:/app/data
+
+  catalog:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: catalog
+      CATALOG_PORT: 3040
+      DATABASE_URL: file:./data/catalog/catalog.db
+    ports:
+      - "3040:3040"
+    volumes:
+      - ./data/catalog:/app/data
+
+  inventory:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: inventory
+      INVENTORY_PORT: 3050
+      DATABASE_URL: file:./data/inventory/inventory.db
+    ports:
+      - "3050:3050"
+    volumes:
+      - ./data/inventory:/app/data
+
+  order:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: order
+      ORDER_PORT: 3060
+      DATABASE_URL: file:./data/order/order.db
+    ports:
+      - "3060:3060"
+    volumes:
+      - ./data/order:/app/data
+
+  payment:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: payment
+      PAYMENT_PORT: 3070
+      DATABASE_URL: file:./data/payment/payment.db
+      REDIS_URL: redis://redis:6379
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_key}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-rzp_test_secret}
+    ports:
+      - "3070:3070"
+    volumes:
+      - ./data/payment:/app/data
+
+  shipping:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: shipping
+      SHIPPING_PORT: 3080
+      DATABASE_URL: file:./data/shipping/shipping.db
+    ports:
+      - "3080:3080"
+    volumes:
+      - ./data/shipping:/app/data
+
+  review:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: review
+      REVIEW_PORT: 3090
+      DATABASE_URL: file:./data/review/review.db
+    ports:
+      - "3090:3090"
+    volumes:
+      - ./data/review:/app/data
+
+  analytics:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: analytics
+      ANALYTICS_PORT: 3100
+      DATABASE_URL: file:./data/analytics/analytics.db
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./data/analytics:/app/data
+
+  admin:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: admin
+      ADMIN_PORT: 3110
+      DATABASE_URL: file:./data/admin/admin.db
+    ports:
+      - "3110:3110"
+    volumes:
+      - ./data/admin:/app/data
+
+  search:
+    <<: *node-base
+    environment:
+      <<: *node-env
+      SERVICE_NAME: search
+      SEARCH_PORT: 3120
+      DATABASE_URL: file:./data/search/search.db
+    ports:
+      - "3120:3120"
+    volumes:
+      - ./data/search:/app/data
+
