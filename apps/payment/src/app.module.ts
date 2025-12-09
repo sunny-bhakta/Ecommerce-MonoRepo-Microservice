@@ -23,6 +23,7 @@ import {
   PAYMENT_RETRY_WORKER,
 } from './payment.constants';
 import { RazorpayProvider } from './providers/razorpay.provider';
+import { StripeProvider } from './providers/stripe.provider';
 
 function ensureDirectoryExists(filePath: string): void {
   const dir = dirname(filePath);
@@ -91,6 +92,15 @@ function createRedisConnectionOptions(redisUrl: string) {
         new RazorpayProvider({
           keyId: config.get<string>('RAZORPAY_KEY_ID') ?? 'rzp_test_key',
           keySecret: config.get<string>('RAZORPAY_KEY_SECRET') ?? 'rzp_test_secret',
+        }),
+    },
+    {
+      provide: StripeProvider,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        new StripeProvider({
+          apiKey: config.get<string>('STRIPE_SECRET_KEY') ?? 'sk_test_key',
+          webhookSecret: config.get<string>('STRIPE_WEBHOOK_SECRET') ?? 'whsec_test_secret',
         }),
     },
     {

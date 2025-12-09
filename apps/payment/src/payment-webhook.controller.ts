@@ -17,5 +17,16 @@ export class PaymentWebhookController {
     await this.appService.handleRazorpayWebhook(rawBody, signature, body);
     return { received: true };
   }
+
+  @Post('stripe')
+  async handleStripeWebhook(
+    @Body() body: any,
+    @Headers('stripe-signature') signature: string | undefined,
+    @Req() req: Request & { rawBody?: Buffer },
+  ) {
+    const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(body));
+    await this.appService.handleStripeWebhook(rawBody, signature);
+    return { received: true };
+  }
 }
 
