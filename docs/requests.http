@@ -113,10 +113,177 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-  "fullName": "Alice Updated",
+  "fullName": "Alice Updated",           // string: User's full name
+  "phoneNumber": "+91-9876543210",       // string: User's contact number (E.164 format recommended)
+  "dateOfBirth": "1990-01-01",           // string (ISO 8601): User's date of birth (optional)
   "preferences": {
-    "language": "en",
-    "currency": "INR"
+    "language": "en",                    // string: Preferred language code (e.g., 'en', 'hi')
+    "currency": "INR",                   // string: Preferred currency code (ISO 4217)
+    "newsletterSubscribed": true         // boolean: Whether user is subscribed to newsletters
   }
 }
 
+### Vendor (admin)
+POST http://localhost:3000/vendors
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Acme Corp",
+  "email": "vendor@example.com",
+  "companyName": "Acme Corp Ltd",
+  "gstNumber": "GST12345"
+}
+
+### Catalog (admin)
+POST http://localhost:3000/catalog/categories
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "name": "Shoes" }
+
+POST http://localhost:3000/catalog/products
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Running Shoe",
+  "categoryId": "{{categoryId}}",
+  "basePrice": 99.5,
+  "attributes": [{ "key": "color", "value": "red" }]
+}
+
+### Inventory
+POST http://localhost:3000/warehouses
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "name": "WH-1", "location": "NY" }
+
+POST http://localhost:3000/inventory/stock
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "onHand": 50 }
+
+POST http://localhost:3000/inventory/reserve
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "quantity": 2 }
+
+GET http://localhost:3000/inventory/SKU-1
+
+### Shipping
+POST http://localhost:3000/shipments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "orderId": "{{orderId}}",
+  "carrier": "dhl",
+  "destination": "123 Main St, City",
+  "trackingNumber": "TRK123"
+}
+
+PATCH http://localhost:3000/shipments/{{shipmentId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "status": "in_transit", "trackingNumber": "TRK123" }
+
+### Search (admin index + public query)
+POST http://localhost:3000/search/index
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "id": "doc-1",
+  "title": "Red Running Shoe",
+  "description": "Lightweight shoe",
+  "tags": ["shoe","running"]
+}
+
+POST http://localhost:3000/search/query
+Content-Type: application/json
+
+{ "query": "shoe", "tags": ["running"] }
+
+GET http://localhost:3000/search/documents/doc-1
+
+### Reviews
+POST http://localhost:3000/reviews
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "targetId": "{{productId}}",
+  "targetType": "product",
+  "rating": 5,
+  "comment": "Great!"
+}
+
+PATCH http://localhost:3000/reviews/{{reviewId}}/flag
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "reason": "spam" }
+
+PATCH http://localhost:3000/reviews/{{reviewId}}/moderate
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "status": "approved", "moderatorNote": "ok" }
+
+GET http://localhost:3000/reviews?targetId={{productId}}&targetType=product
+
+### Analytics
+POST http://localhost:3000/analytics/events
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "type": "order", "amount": 199.99, "currency": "USD", "status": "created" }
+
+GET http://localhost:3000/analytics/metrics
+Authorization: Bearer {{adminToken}}
+
+### Admin actions
+POST http://localhost:3000/admin/actions
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targetType": "review",
+  "targetId": "{{reviewId}}",
+  "actionType": "review_moderation",
+  "note": "check content"
+}
+
+PATCH http://localhost:3000/admin/actions/{{actionId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "status": "completed", "resolutionNote": "approved" }
+
+### Notifications (Python service via gateway)
+POST http://localhost:3000/notifications
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "channel": "email",
+  "to": "user@example.com",
+  "title": "Hello",
+  "body": "Welcome!",
+  "metadata": { "foo": "bar" }
+}
+
+POST http://localhost:3000/notifications/webpush/register
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "endpoint": "https://push.example/123",
+  "p256dh": "key",
+  "auth": "authkey"
+}

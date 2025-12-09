@@ -4,10 +4,11 @@ import { FindOptionsWhere, Repository } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { Queue } from 'bullmq';
 import { lastValueFrom } from 'rxjs';
+import Stripe from 'stripe';
 
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
-import { PaymentEntity, PaymentStatus } from './entities/payment.entity';
+import { PaymentEntity, PaymentProvider, PaymentStatus } from './entities/payment.entity';
 import { PaymentEventLogEntity } from './entities/payment-event-log.entity';
 import { PaymentRefundEntity, RefundStatus } from './entities/payment-refund.entity';
 import {
@@ -15,7 +16,6 @@ import {
   PaymentCompletedEventPayload,
   PaymentEventNames,
   PaymentFailedEventPayload,
-  PaymentRefundedEventPayload,
 } from '@app/events';
 import {
   MAX_PAYMENT_ATTEMPTS,
@@ -24,6 +24,7 @@ import {
   PAYMENT_RETRY_QUEUE,
 } from './payment.constants';
 import { RazorpayProvider } from './providers/razorpay.provider';
+import { StripeProvider } from './providers/stripe.provider';
 
 interface PaymentRetryJobData {
   paymentId: string;
@@ -46,6 +47,7 @@ export class AppService {
     @Inject(PAYMENT_DLQ_QUEUE)
     private readonly paymentDlqQueue: Queue,
     private readonly razorpayProvider: RazorpayProvider,
+    private readonly stripeProvider: StripeProvider,
   ) {}
 
   async health() {
@@ -130,59 +132,19 @@ export class AppService {
       return;
     }
 
-    try {
-      const result = await this.chargeViaRazorpay(payment);
-      await this.paymentRepository.update(
-        { id: paymentId },
-        { status: PaymentStatus.PENDING, failureReason: null, gatewayOrderId: result.id },
-      );
-      const updated = await this.paymentRepository.findOneByOrFail({ id: paymentId });
-      await this.recordProviderEvent(
-        'razorpay',
-        'order.created',
-        {
-          providerOrderId: result.id,
-          paymentId: paymentId,
-          providerStatus: result.status,
-        },
-        updated,
-      );
-    } catch (error) {
-      const failureReason = error instanceof Error ? error.message : 'Razorpay order creation failed';
-      await this.recordProviderEvent(
-        'razorpay',
-        'order.create.failed',
-        {
-          paymentId,
-          attempt,
-          reason: failureReason,
-        },
-        payment,
-      );
-
-      if (attempt >= MAX_PAYMENT_ATTEMPTS) {
-        await this.paymentRepository.update(
-          { id: paymentId },
-          { status: PaymentStatus.FAILED, failureReason },
-        );
-        await this.paymentDlqQueue.add(
-          'payment-order-failed',
-          {
-            paymentId,
-            attempt,
-            reason: failureReason,
-          },
-          { removeOnComplete: true },
-        );
-        const updated = await this.paymentRepository.findOne({ where: { id: paymentId } });
-        if (updated) {
-          await this.emitPaymentFailedEvent(updated, failureReason);
-        }
-      } else {
-        const delayMs = this.calculateRetryDelay(attempt);
-        await this.enqueuePaymentProcessing(paymentId, attempt + 1, delayMs);
-      }
+    if (payment.provider === PaymentProvider.RAZORPAY) {
+      await this.processRazorpayPayment(payment, attempt);
+      return;
     }
+
+    if (payment.provider === PaymentProvider.STRIPE) {
+      await this.processStripePayment(payment, attempt);
+      return;
+    }
+
+    const failureReason = `Unsupported payment provider: ${payment.provider}`;
+    await this.recordProviderEvent('payment', 'provider.unsupported', { paymentId, provider: payment.provider }, payment);
+    await this.handlePaymentFailure(payment, failureReason, attempt);
   }
 
   private async chargeViaRazorpay(payment: PaymentEntity) {
@@ -195,6 +157,121 @@ export class AppService {
         userId: payment.userId,
       },
     });
+  }
+
+  private async chargeViaStripe(payment: PaymentEntity) {
+    return this.stripeProvider.createPaymentIntent({
+      amount: payment.amount,
+      currency: payment.currency,
+      description: `Order ${payment.orderId}`,
+      metadata: {
+        orderId: payment.orderId,
+        userId: payment.userId,
+      },
+    });
+  }
+
+  private async processRazorpayPayment(payment: PaymentEntity, attempt: number): Promise<void> {
+    try {
+      const result = await this.chargeViaRazorpay(payment);
+      await this.paymentRepository.update(
+        { id: payment.id },
+        { status: PaymentStatus.PENDING, failureReason: null, gatewayOrderId: result.id },
+      );
+      const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
+      await this.recordProviderEvent(
+        'razorpay',
+        'order.created',
+        {
+          providerOrderId: result.id,
+          paymentId: payment.id,
+          providerStatus: result.status,
+        },
+        updated,
+      );
+    } catch (error) {
+      const failureReason = error instanceof Error ? error.message : 'Razorpay order creation failed';
+      await this.recordProviderEvent(
+        'razorpay',
+        'order.create.failed',
+        {
+          paymentId: payment.id,
+          attempt,
+          reason: failureReason,
+        },
+        payment,
+      );
+      await this.handlePaymentFailure(payment, failureReason, attempt);
+    }
+  }
+
+  private async processStripePayment(payment: PaymentEntity, attempt: number): Promise<void> {
+    try {
+      const result = await this.chargeViaStripe(payment);
+      const stripeClientSecret = result.clientSecret ?? undefined;
+      const stripeMetadata: Record<string, unknown> | null = {
+        ...(payment.metadata ?? {}),
+        stripeClientSecret,
+      };
+      await this.paymentRepository.update(
+        { id: payment.id },
+        {
+          status: PaymentStatus.PENDING,
+          failureReason: null,
+          gatewayPaymentId: result.id,
+          metadata: stripeMetadata as any,
+        },
+      );
+      const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
+      await this.recordProviderEvent(
+        'stripe',
+        'payment_intent.created',
+        {
+          providerPaymentId: result.id,
+          paymentId: payment.id,
+          providerStatus: result.status,
+        },
+        updated,
+      );
+    } catch (error) {
+      const failureReason = error instanceof Error ? error.message : 'Stripe payment intent creation failed';
+      await this.recordProviderEvent(
+        'stripe',
+        'payment_intent.create.failed',
+        {
+          paymentId: payment.id,
+          attempt,
+          reason: failureReason,
+        },
+        payment,
+      );
+      await this.handlePaymentFailure(payment, failureReason, attempt);
+    }
+  }
+
+  private async handlePaymentFailure(payment: PaymentEntity, failureReason: string, attempt: number): Promise<void> {
+    if (attempt >= MAX_PAYMENT_ATTEMPTS) {
+      await this.paymentRepository.update(
+        { id: payment.id },
+        { status: PaymentStatus.FAILED, failureReason },
+      );
+      await this.paymentDlqQueue.add(
+        'payment-order-failed',
+        {
+          paymentId: payment.id,
+          attempt,
+          reason: failureReason,
+        },
+        { removeOnComplete: true },
+      );
+      const updated = await this.paymentRepository.findOne({ where: { id: payment.id } });
+      if (updated) {
+        await this.emitPaymentFailedEvent(updated, failureReason);
+      }
+    } else {
+      const delayMs = this.calculateRetryDelay(attempt);
+      await this.enqueuePaymentProcessing(payment.id, attempt + 1, delayMs);
+    }
   }
 
   private async emitPaymentCompletedEvent(payment: PaymentEntity): Promise<void> {
@@ -282,6 +359,58 @@ export class AppService {
         payload?.payload?.payment?.entity?.error_description ||
         'Razorpay payment failed';
 
+      await this.paymentRepository.update(
+        { id: payment.id },
+        {
+          status: PaymentStatus.FAILED,
+          gatewayPaymentId: providerPaymentId ?? payment.gatewayPaymentId,
+          failureReason,
+        },
+      );
+      const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
+      await this.emitPaymentFailedEvent(updated, failureReason);
+    }
+  }
+
+  async handleStripeWebhook(rawBody: Buffer | string, signature: string | undefined) {
+    if (!signature) {
+      throw new BadRequestException('Missing Stripe signature header');
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = this.stripeProvider.constructWebhookEvent(rawBody, signature);
+    } catch {
+      throw new BadRequestException('Invalid Stripe signature');
+    }
+
+    const eventType = event?.type ?? 'unknown';
+    const paymentIntent = event?.data?.object as Stripe.PaymentIntent | undefined;
+    const providerPaymentId = paymentIntent?.id;
+
+    const payment = providerPaymentId
+      ? await this.paymentRepository.findOne({ where: { gatewayPaymentId: providerPaymentId } })
+      : null;
+
+    await this.recordProviderEvent('stripe', eventType, event.data?.object ?? {}, payment ?? undefined);
+
+    if (!payment || !paymentIntent) {
+      return;
+    }
+
+    if (eventType === 'payment_intent.succeeded') {
+      await this.paymentRepository.update(
+        { id: payment.id },
+        {
+          status: PaymentStatus.SUCCEEDED,
+          gatewayPaymentId: providerPaymentId,
+          failureReason: null,
+        },
+      );
+      const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
+      await this.emitPaymentCompletedEvent(updated);
+    } else if (eventType === 'payment_intent.payment_failed') {
+      const failureReason = paymentIntent.last_payment_error?.message ?? 'Stripe payment failed';
       await this.paymentRepository.update(
         { id: payment.id },
         {

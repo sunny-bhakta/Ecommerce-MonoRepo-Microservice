@@ -17,6 +17,7 @@ export async function bootstrapHttpService(
   const configService = app.get(ConfigService);
 
   if (options.enableMicroservice ?? true) {
+    //todo uncomment this when rmq is ready
     // connectRmqMicroservice(app, configService, options.serviceName);
     await app.startAllMicroservices();
   }

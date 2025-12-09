@@ -1,6 +1,6 @@
 # Gateway Orchestration Overview
 
-This document explains how the API gateway orchestrates checkout requests across the existing microservices (order + payment + user profile) and enforces authentication via the auth service. It covers the new REST endpoints, configuration knobs, and runtime behaviour so that other developers can extend the flow safely.
+This document explains how the API gateway orchestrates and proxies all downstream services (auth, user, vendor, catalog, inventory, order, payment, shipping, search, review, analytics, admin, notification). It lists configuration, health behaviour, and available REST endpoints exposed via the gateway.
 
 ## High-Level Flow
 
@@ -18,18 +18,25 @@ This document explains how the API gateway orchestrates checkout requests across
 
 If the payment service signals a `succeeded` status the gateway tags the response with `nextSteps: "order_confirmed"`. Failed payments get `nextSteps: "retry_payment"` while all other states instruct the client to wait.
 
-## Configuration
+## Configuration (service URLs)
 
-The gateway resolves downstream service URLs via environment variables. Each variable accepts a full HTTP base URL (host + port) for the service.
+Each downstream service is resolved via an env var (full base URL). Defaults:
 
-| Service | Env Var | Default |
-|---------|---------|---------|
-| Order   | `ORDER_SERVICE_URL`   | `http://localhost:3060` |
-| Payment | `PAYMENT_SERVICE_URL` | `http://localhost:3070` |
-| User    | `USER_SERVICE_URL`    | `http://localhost:3020` |
-| Auth    | `AUTH_SERVICE_URL`    | `http://localhost:3010` |
-
-These defaults match the Nest microservice ports configured in `apps/order/src/main.ts` and `apps/payment/src/main.ts`.
+| Service      | Env Var                    | Default                  |
+|--------------|----------------------------|--------------------------|
+| Auth         | `AUTH_SERVICE_URL`         | `http://localhost:3010`  |
+| User         | `USER_SERVICE_URL`         | `http://localhost:3020`  |
+| Vendor       | `VENDOR_SERVICE_URL`       | `http://localhost:3030`  |
+| Catalog      | `CATALOG_SERVICE_URL`      | `http://localhost:3040`  |
+| Inventory    | `INVENTORY_SERVICE_URL`    | `http://localhost:3050`  |
+| Order        | `ORDER_SERVICE_URL`        | `http://localhost:3060`  |
+| Payment      | `PAYMENT_SERVICE_URL`      | `http://localhost:3070`  |
+| Shipping     | `SHIPPING_SERVICE_URL`     | `http://localhost:3080`  |
+| Review       | `REVIEW_SERVICE_URL`       | `http://localhost:3090`  |
+| Analytics    | `ANALYTICS_SERVICE_URL`    | `http://localhost:3100`  |
+| Admin        | `ADMIN_SERVICE_URL`        | `http://localhost:3110`  |
+| Search       | `SEARCH_SERVICE_URL`       | `http://localhost:3120`  |
+| Notification | `NOTIFICATION_SERVICE_URL` | `http://localhost:3130` (Python FastAPI) |
 
 ## Health Propagation
 
@@ -64,12 +71,82 @@ The top-level status flips to `degraded` if any downstream service is unhealthy.
 - `RolesGuard` reuses the `roles` array from the token to protect admin-only surfaces (`/users` CRUD).
 - Checkout now derives the `userId` from the authenticated principal; clients no longer send it in the payload.
 
-## User Edge APIs
+## Auth & User APIs
 
-- `POST /users` proxies profile creation to the user service.
-- `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `DELETE /users/:id` expose read/update/delete functionality without coupling clients to the downstream URL.
-- Payload validation lives in `apps/gateway/src/dto/user-profile.dto.ts` so requests are filtered before hitting downstream services.
-- Customers can manage their own profile via `GET /me/profile` and `PATCH /me/profile`, which proxy to `GET/PATCH /users/:id` using the authenticated principal.
+- `POST /auth/login`, `POST /auth/register` (from auth service)
+- `GET /me/profile`, `PATCH /me/profile`
+- Admin user CRUD: `POST /users`, `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `DELETE /users/:id`
+
+## Vendor APIs
+
+- Admin-only: `POST /vendors`, `GET /vendors`, `GET /vendors/:id`, `PATCH /vendors/:id`
+
+## Catalog APIs
+
+- Admin-only: `POST /catalog/categories`, `POST /catalog/products`, `POST /catalog/products/:productId/variants`
+- Read: `GET /catalog/categories`, `GET /catalog/products`, `GET /catalog/products/:id`, `GET /catalog/products/:productId/variants`
+
+## Inventory APIs
+
+- Admin-only write: `POST /warehouses`, `POST /inventory/stock`, `POST /inventory/reserve`, `POST /inventory/release`, `POST /inventory/allocate`
+- Read: `GET /warehouses`, `GET /inventory/:sku`
+
+## Order APIs
+
+- `POST /checkout` orchestrates order + payment (requires auth)
+- `GET /orders/:orderId/summary` aggregates order + payments
+
+## Payment APIs
+
+- `POST /payments`, `GET /payments`, `GET /payments/:id`, `POST /payments/:id/refund`, `GET /payments/:id/refunds`
+
+## Shipping APIs (via Gateway)
+
+- Admin-only write:
+  - `POST /shipments` create a shipment (orderId, carrier, destination, optional tracking number)
+  - `PATCH /shipments/:id/status` update shipment status or tracking number
+- Read:
+  - `GET /shipments` list shipments (optional `orderId` filter)
+  - `GET /shipments/:id` get shipment
+
+## Search APIs (via Gateway)
+
+- Admin-only write:
+  - `POST /search/index` index or update a document (id, title, description, tags)
+- Read:
+  - `POST /search/query` keyword search with optional tags
+  - `GET /search/documents/:id` fetch an indexed document
+
+## Review & Rating APIs (via Gateway)
+
+- Authenticated create/flag:
+  - `POST /reviews` create review (product|vendor) with rating/comment
+  - `PATCH /reviews/:id/flag` flag a review with optional reason
+- Read:
+  - `GET /reviews` list (filters: targetId, targetType, status)
+- Admin moderation:
+  - `PATCH /reviews/:id/moderate` set status approved/rejected with optional note
+
+## Analytics APIs (via Gateway)
+
+- Authenticated ingest:
+  - `POST /analytics/events` send event (order|payment|shipment) with optional amount/currency/status
+- Admin metrics:
+  - `GET /analytics/metrics` aggregated counts and GMV/AOV (placeholder)
+
+## Admin / Backoffice APIs (via Gateway)
+
+- Admin-only:
+  - `POST /admin/actions` create admin action (review moderation, refund, vendor approval, order investigation)
+  - `GET /admin/actions` list actions (filters: status, targetType)
+  - `PATCH /admin/actions/:id` update status/resolution note
+
+## Notification APIs (via Gateway → Python service)
+
+- Authenticated send:
+  - `POST /notifications` with `{ channel: email|sms|webpush, to, title?, body, metadata? }`
+- Webpush registration:
+  - `POST /notifications/webpush/register` with `{ endpoint, p256dh, auth }`
 
 ## Extending the Flow
 

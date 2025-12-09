@@ -11,8 +11,41 @@ import {
 } from './dto/checkout-request.dto';
 import { CreateGatewayUserDto, UpdateGatewayUserDto } from './dto/user-profile.dto';
 import { AuthenticatedUser } from './interfaces/authenticated-user.interface';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateProductDto } from './dto/create-product.dto';
+import { CreateVariantDto } from './dto/create-variant.dto';
+import { CreateVendorDto } from './dto/create-vendor.dto';
+import { UpdateVendorDto } from './dto/update-vendor.dto';
+import { CreateWarehouseDto } from './dto/create-warehouse.dto';
+import { UpsertStockDto } from './dto/upsert-stock.dto';
+import { AdjustmentDto } from './dto/adjustment.dto';
+import { CreateShipmentDto } from './dto/create-shipment.dto';
+import { UpdateShipmentStatusDto } from './dto/update-shipment-status.dto';
+import { IndexDocumentDto } from './dto/index-document.dto';
+import { SearchQueryDto } from './dto/search-query.dto';
+import { CreateReviewDto } from './dto/create-review.dto';
+import { ModerateReviewDto } from './dto/moderate-review.dto';
+import { FlagReviewDto } from './dto/flag-review.dto';
+import { IngestEventDto } from './dto/ingest-event.dto';
+import { CreateAdminActionDto } from './dto/create-admin-action.dto';
+import { UpdateAdminActionDto } from './dto/update-admin-action.dto';
+import { SendNotificationDto } from './dto/send-notification.dto';
+import { WebpushRegistrationDto } from './dto/webpush-registration.dto';
 
-type DownstreamService = 'order' | 'payment' | 'user' | 'auth';
+type DownstreamService =
+  | 'order'
+  | 'payment'
+  | 'user'
+  | 'auth'
+  | 'catalog'
+  | 'vendor'
+  | 'inventory'
+  | 'shipping'
+  | 'search'
+  | 'review'
+  | 'analytics'
+  | 'admin'
+  | 'notification';
 
 interface DependencyHealth {
   service: DownstreamService;
@@ -47,11 +80,141 @@ interface UserProfileResponse {
   isActive: boolean;
 }
 
+interface VendorProfile {
+  id: string;
+  name: string;
+  email: string;
+  companyName: string;
+  gstNumber?: string;
+  address?: string;
+  kycStatus: 'pending' | 'verified' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CatalogCategory {
+  id: string;
+  name: string;
+  parentId?: string;
+}
+
+interface CatalogVariant {
+  id: string;
+  productId: string;
+  sku: string;
+  price: number;
+  stock: number;
+  attributes: { key: string; value: string }[];
+}
+
+interface CatalogProduct {
+  id: string;
+  name: string;
+  description?: string;
+  categoryId: string;
+  basePrice: number;
+  attributes: { key: string; value: string }[];
+  variants: CatalogVariant[];
+}
+
+interface InventoryWarehouse {
+  id: string;
+  name: string;
+  location?: string;
+}
+
+interface InventoryAvailability {
+  sku: string;
+  totalOnHand: number;
+  totalReserved: number;
+  totalAvailable: number;
+  warehouses: {
+    warehouseId: string;
+    onHand: number;
+    reserved: number;
+    available: number;
+  }[];
+}
+
+interface Shipment {
+  id: string;
+  orderId: string;
+  carrier: string;
+  trackingNumber?: string;
+  destination: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SearchDocument {
+  id: string;
+  title: string;
+  description?: string;
+  tags: string[];
+}
+
+interface Review {
+  id: string;
+  userId: string;
+  targetId: string;
+  targetType: 'product' | 'vendor';
+  rating: number;
+  comment?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  flagged: boolean;
+  flagReason?: string;
+  moderatorNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MetricsSummary {
+  summary: {
+    orders: number;
+    payments: number;
+    shipments: number;
+  };
+  gmv: number;
+  avgOrderValue: number;
+  paymentAttempts: number;
+  updatedAt: string;
+}
+
+interface AdminAction {
+  id: string;
+  targetType: string;
+  targetId: string;
+  actionType: string;
+  status: string;
+  note?: string;
+  resolutionNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface NotificationAccepted {
+  accepted: boolean;
+  channel: string;
+  target: string;
+  metadata?: Record<string, unknown>;
+  provider_urls?: Record<string, string>;
+}
+
 const DEFAULT_SERVICE_URLS: Record<DownstreamService, string> = {
   order: 'http://localhost:3060',
   payment: 'http://localhost:3070',
   user: 'http://localhost:3020',
   auth: 'http://localhost:3050',
+  catalog: 'http://localhost:3040',
+  vendor: 'http://localhost:3030',
+  inventory: 'http://localhost:3050',
+  shipping: 'http://localhost:3080',
+  search: 'http://localhost:3120',
+  analytics: 'http://localhost:3100',
+  admin: 'http://localhost:3110',
+  notification: 'http://localhost:3130',
+  review: 'http://localhost:3090',
 };
 
 @Injectable()
@@ -179,6 +342,290 @@ export class AppService {
     );
   }
 
+  async createCategory(dto: CreateCategoryDto) {
+    return this.postToService<CatalogCategory>(
+      this.composeServiceUrl('catalog', '/categories'),
+      dto,
+      'catalog service',
+    );
+  }
+
+  async listCategories() {
+    return this.getFromService<CatalogCategory[]>(
+      this.composeServiceUrl('catalog', '/categories'),
+      'catalog service',
+    );
+  }
+
+  async createProduct(dto: CreateProductDto) {
+    return this.postToService<CatalogProduct>(
+      this.composeServiceUrl('catalog', '/products'),
+      dto,
+      'catalog service',
+    );
+  }
+
+  async listProducts() {
+    return this.getFromService<CatalogProduct[]>(
+      this.composeServiceUrl('catalog', '/products'),
+      'catalog service',
+    );
+  }
+
+  async getProduct(id: string) {
+    return this.getFromService<CatalogProduct>(
+      this.composeServiceUrl('catalog', `/products/${id}`),
+      'catalog service',
+    );
+  }
+
+  async addVariant(productId: string, dto: CreateVariantDto) {
+    return this.postToService<CatalogVariant>(
+      this.composeServiceUrl('catalog', `/products/${productId}/variants`),
+      dto,
+      'catalog service',
+    );
+  }
+
+  async listVariants(productId: string) {
+    return this.getFromService<CatalogVariant[]>(
+      this.composeServiceUrl('catalog', `/products/${productId}/variants`),
+      'catalog service',
+    );
+  }
+
+  async createVendor(dto: CreateVendorDto) {
+    return this.postToService<VendorProfile>(
+      this.composeServiceUrl('vendor', '/vendors'),
+      dto,
+      'vendor service',
+    );
+  }
+
+  async listVendors() {
+    return this.getFromService<VendorProfile[]>(
+      this.composeServiceUrl('vendor', '/vendors'),
+      'vendor service',
+    );
+  }
+
+  async getVendor(id: string) {
+    return this.getFromService<VendorProfile>(
+      this.composeServiceUrl('vendor', `/vendors/${id}`),
+      'vendor service',
+    );
+  }
+
+  async updateVendor(id: string, dto: UpdateVendorDto) {
+    return this.patchToService<VendorProfile>(
+      this.composeServiceUrl('vendor', `/vendors/${id}`),
+      dto,
+      'vendor service',
+    );
+  }
+
+  async createWarehouse(dto: CreateWarehouseDto) {
+    return this.postToService<InventoryWarehouse>(
+      this.composeServiceUrl('inventory', '/warehouses'),
+      dto,
+      'inventory service',
+    );
+  }
+
+  async listWarehouses() {
+    return this.getFromService<InventoryWarehouse[]>(
+      this.composeServiceUrl('inventory', '/warehouses'),
+      'inventory service',
+    );
+  }
+
+  async upsertStock(dto: UpsertStockDto) {
+    return this.postToService(
+      this.composeServiceUrl('inventory', '/inventory/stock'),
+      dto,
+      'inventory service',
+    );
+  }
+
+  async getAvailability(sku: string) {
+    return this.getFromService<InventoryAvailability>(
+      this.composeServiceUrl('inventory', `/inventory/${sku}`),
+      'inventory service',
+    );
+  }
+
+  async reserveStock(dto: AdjustmentDto) {
+    return this.postToService(
+      this.composeServiceUrl('inventory', '/inventory/reserve'),
+      dto,
+      'inventory service',
+    );
+  }
+
+  async releaseStock(dto: AdjustmentDto) {
+    return this.postToService(
+      this.composeServiceUrl('inventory', '/inventory/release'),
+      dto,
+      'inventory service',
+    );
+  }
+
+  async allocateStock(dto: AdjustmentDto) {
+    return this.postToService(
+      this.composeServiceUrl('inventory', '/inventory/allocate'),
+      dto,
+      'inventory service',
+    );
+  }
+
+  async createShipment(dto: CreateShipmentDto) {
+    return this.postToService<Shipment>(
+      this.composeServiceUrl('shipping', '/shipments'),
+      dto,
+      'shipping service',
+    );
+  }
+
+  async listShipments(orderId?: string) {
+    const query = orderId ? `?orderId=${encodeURIComponent(orderId)}` : '';
+    return this.getFromService<Shipment[]>(
+      this.composeServiceUrl('shipping', `/shipments${query}`),
+      'shipping service',
+    );
+  }
+
+  async getShipment(id: string) {
+    return this.getFromService<Shipment>(
+      this.composeServiceUrl('shipping', `/shipments/${id}`),
+      'shipping service',
+    );
+  }
+
+  async updateShipmentStatus(id: string, dto: UpdateShipmentStatusDto) {
+    return this.patchToService<Shipment>(
+      this.composeServiceUrl('shipping', `/shipments/${id}/status`),
+      dto,
+      'shipping service',
+    );
+  }
+
+  async indexSearchDocument(dto: IndexDocumentDto) {
+    return this.postToService<SearchDocument>(
+      this.composeServiceUrl('search', '/index'),
+      dto,
+      'search service',
+    );
+  }
+
+  async search(dto: SearchQueryDto) {
+    return this.postToService<SearchDocument[]>(
+      this.composeServiceUrl('search', '/search'),
+      dto,
+      'search service',
+    );
+  }
+
+  async getDocument(id: string) {
+    return this.getFromService<SearchDocument>(
+      this.composeServiceUrl('search', `/documents/${id}`),
+      'search service',
+    );
+  }
+
+  async createReview(dto: CreateReviewDto, userId: string) {
+    return this.postToService<Review>(
+      this.composeServiceUrl('review', '/reviews'),
+      { ...dto, userId },
+      'review service',
+    );
+  }
+
+  async listReviews(targetId?: string, targetType?: 'product' | 'vendor', status?: string) {
+    const params = new URLSearchParams();
+    if (targetId) params.append('targetId', targetId);
+    if (targetType) params.append('targetType', targetType);
+    if (status) params.append('status', status);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.getFromService<Review[]>(
+      this.composeServiceUrl('review', `/reviews${query}`),
+      'review service',
+    );
+  }
+
+  async flagReview(id: string, dto: FlagReviewDto) {
+    return this.patchToService<Review>(
+      this.composeServiceUrl('review', `/reviews/${id}/flag`),
+      dto,
+      'review service',
+    );
+  }
+
+  async moderateReview(id: string, dto: ModerateReviewDto) {
+    return this.patchToService<Review>(
+      this.composeServiceUrl('review', `/reviews/${id}/moderate`),
+      dto,
+      'review service',
+    );
+  }
+
+  async ingestAnalyticsEvent(dto: IngestEventDto) {
+    return this.postToService(
+      this.composeServiceUrl('analytics', '/events'),
+      dto,
+      'analytics service',
+    );
+  }
+
+  async analyticsMetrics() {
+    return this.getFromService<MetricsSummary>(
+      this.composeServiceUrl('analytics', '/metrics'),
+      'analytics service',
+    );
+  }
+
+  async createAdminAction(dto: CreateAdminActionDto) {
+    return this.postToService<AdminAction>(
+      this.composeServiceUrl('admin', '/admin/actions'),
+      dto,
+      'admin service',
+    );
+  }
+
+  async listAdminActions(status?: string, targetType?: string) {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (targetType) params.append('targetType', targetType);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.getFromService<AdminAction[]>(
+      this.composeServiceUrl('admin', `/admin/actions${query}`),
+      'admin service',
+    );
+  }
+
+  async updateAdminAction(id: string, dto: UpdateAdminActionDto) {
+    return this.patchToService<AdminAction>(
+      this.composeServiceUrl('admin', `/admin/actions/${id}`),
+      dto,
+      'admin service',
+    );
+  }
+
+  async sendNotification(dto: SendNotificationDto) {
+    return this.postToService<NotificationAccepted>(
+      this.composeServiceUrl('notification', '/notifications'),
+      dto,
+      'notification service',
+    );
+  }
+
+  async registerWebpush(dto: WebpushRegistrationDto) {
+    return this.postToService(
+      this.composeServiceUrl('notification', '/notifications/webpush/register'),
+      dto,
+      'notification service',
+    );
+  }
+
   private describeNextSteps(paymentStatus?: string) {
     if (!paymentStatus) {
       return 'await_payment_status';
@@ -208,7 +655,21 @@ export class AppService {
   }
 
   private async collectDependencyHealth(): Promise<DependencyHealth[]> {
-    const services: DownstreamService[] = ['order', 'payment', 'user', 'auth'];
+    const services: DownstreamService[] = [
+      'order',
+      'payment',
+      'user',
+      'auth',
+      'catalog',
+      'vendor',
+      'inventory',
+      'shipping',
+      'search',
+      'analytics',
+      'admin',
+      'notification',
+      'review',
+    ];
     const checks = await Promise.all(
       services.map(async (service) => {
         try {
