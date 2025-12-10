@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
+import logging
 import os
 
 import aio_pika
@@ -14,11 +15,18 @@ from .providers.sendgrid_provider import SendgridProvider
 
 
 load_dotenv()
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s [notification] %(name)s: %(message)s",
+)
+logger = logging.getLogger("notification")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    logger.info("Starting notification service lifespan")
     # RabbitMQ (optional for now)
+    logger.info("Connecting to RabbitMQ at %s", app.state.settings.rabbitmq_url)
     connection = await aio_pika.connect_robust(
         app.state.settings.rabbitmq_url, client_properties={"connection_name": "notification-service"}
     )
@@ -26,6 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await channel.set_qos(prefetch_count=10)
 
     # Mongo client
+    logger.info("Connecting to Mongo at %s", app.state.settings.mongo_url)
     mongo_client = motor.motor_asyncio.AsyncIOMotorClient(app.state.settings.mongo_url)
     mongo_db = mongo_client.get_default_database() or mongo_client.get_database("ecommerce")
 
@@ -36,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    logger.info("Closing notification service lifespan")
     await channel.close()
     await connection.close()
     mongo_client.close()
@@ -51,7 +61,7 @@ def create_app() -> FastAPI:
         twilio_from_number=os.getenv("TWILIO_FROM_NUMBER"),
         sendgrid_api_key=os.getenv("SENDGRID_API_KEY"),
         sendgrid_from_email=os.getenv("SENDGRID_FROM_EMAIL"),
-        mongo_url=os.getenv("MONGO_URL", "mongodb://localhost:27017/ecommerce"),
+        mongo_url=os.getenv("MONGO_URL", "mongodb://0.0.0.0:27017/ecommerce"),
     )
     app = FastAPI(title="Notification Service", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings

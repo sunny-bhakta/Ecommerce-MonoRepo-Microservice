@@ -14,3 +14,8 @@ Webpush: integrate VAPID + real push delivery
   - Keep current registration payload `{endpoint, p256dh, auth}`; optionally accept userId
   - Payload suggestion: include title/body/metadata and default icon/link for clients
 
+- Logger
+  - structured fields (user, order/product IDs, amounts, queue names) logger
+  - Add a microservice message interceptor for RMQ once queues are enabled.
+  - Extend domain-event logging to other services’ critical paths.
+

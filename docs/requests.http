@@ -1,16 +1,35 @@
-# Auth Service
+## Variables
+@customeremail=customer@example.com
+@customerpassword=Passw0rd!
+@customertoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDhiZDVlMS1iMTFiLTRhN2QtYmM2Mi03Mzk4MGE1MDAwM2UiLCJlbWFpbCI6ImN1c3RvbWVyQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiY3VzdG9tZXIiXSwiaWF0IjoxNzY1MzYwMjE4LCJleHAiOjE3NjUzNjExMTh9.PrMlMQ5UZFxlQ2H3U_kly6K7T4UQubArnfyzIqo04WE
+@adminemail=admin@example.com
+@adminpassword=Passw0rd!
+@adminfullname=Admin Example
+@adminroles=["admin"]
+@admintoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NTMwZTNlZS0zODQzLTRhZWUtODY2My01NTBjNWU3MjkwMTUiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiYWRtaW4iXSwiaWF0IjoxNzY1Mzc0ODcyLCJleHAiOjE3Njc5NjY4NzJ9.vaZT3vwy8h0zlbJituCB_VZ4z8pUyhI2fDPtuExKfxs
+@orderId={{orderId}}
+@paymentId={{paymentId}}
+@refundId={{refundId}}
+@shipmentId={{shipmentId}}
+@productId=6939989557edd564777af478
+@categoryId=6939986757edd564777af474
+@warehouseId={{warehouseId}}
+@reviewId={{reviewId}}
+@actionId={{actionId}}
+
+# Auth Service (port 3010)
 ### Health
 GET http://localhost:3010/auth/health
 
-### Register
+### Register (example)
 POST http://localhost:3010/auth/register
 Content-Type: application/json
 
 {
-  "email": "alice@example.com",
-  "password": "Passw0rd!",
-  "fullName": "Alice Example",
-  "roles": ["customer"]
+  "email": "{{adminemail}}",
+  "password": "{{adminpassword}}",
+  "fullName": "{{adminfullname}}",
+  "roles": {{adminroles}}
 }
 
 ### Login
@@ -18,38 +37,115 @@ POST http://localhost:3010/auth/login
 Content-Type: application/json
 
 {
-  "email": "alice@example.com",
-  "password": "Passw0rd!"
+  "email": "{{adminemail}}",
+  "password": "{{adminpassword}}"
 }
 
-### Current User (replace {{token}})
+### Current User (me)
 GET http://localhost:3010/auth/me
-Authorization: Bearer {{token}}
+Authorization: Bearer {{admintoken}}
 
 ### Change Password
 PATCH http://localhost:3010/auth/password
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{admintoken}}
 
 {
-  "currentPassword": "Passw0rd!",
+  "currentPassword": "{{adminpassword}}",
   "newPassword": "NewPassw0rd!"
 }
 
 ### Admin - List Users
 GET http://localhost:3010/auth/users
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
-## Gateway
+## Gateway (port 3000) — primary entrypoint
 > All business operations below are routed through the API gateway (`http://localhost:3000`). Do not call downstream services directly from clients.
 
 ### Health
 GET http://localhost:3000/health
 
-### Checkout
+
+### Catalog
+#### Health
+GET http://localhost:3000/catalog/health
+
+#### Create category (admin)
+POST http://localhost:3000/catalog/categories
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{ "name": "Shoes" }
+
+#### List categories
+GET http://localhost:3000/catalog/categories
+
+#### Create product (admin)
+POST http://localhost:3000/catalog/products
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{
+  "name": "Running Shoe",
+  "categoryId": "{{categoryId}}",
+  "basePrice": 99.5,
+  "attributes": [{ "key": "color", "value": "red" }]
+}
+
+#### List products
+GET http://localhost:3000/catalog/products
+
+#### Get product by id
+GET http://localhost:3000/catalog/products/{{productId}}
+
+#### Add variant to product (admin)
+POST http://localhost:3000/catalog/products/{{productId}}/variants
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{
+  "sku": "SKU-1",
+  "price": 109.99,
+  "stock": 10,
+  "attributes": [{ "key": "size", "value": "42" }]
+}
+
+#### List variants for product
+GET http://localhost:3000/catalog/products/{{productId}}/variants
+
+
+
+### Inventory (admin)
+
+#### Create Warehouse
+POST http://localhost:3000/warehouses
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{ "name": "WH-1", "location": "NY" }
+
+
+#### Manage stock
+POST http://localhost:3000/inventory/stock
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "onHand": 50 }
+
+#### Reserve stock
+POST http://localhost:3000/inventory/reserve
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "quantity": 2 }
+
+GET http://localhost:3000/inventory/SKU-1
+
+### Order lifecycle
+#### Checkout (create order + payment intent/order)
 POST http://localhost:3000/checkout
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
 {
   "currency": "INR",
@@ -61,14 +157,49 @@ Authorization: Bearer {{token}}
   "paymentProvider": "razorpay"
 }
 
-### Order Summary
-GET http://localhost:3000/orders/{{orderId}}/summary
-Authorization: Bearer {{token}}
+#### List my orders
+GET http://localhost:3000/orders
+Authorization: Bearer {{customertoken}}
 
-### Gateway User APIs
+#### Order detail / summary
+GET http://localhost:3000/orders/{{orderId}}/summary
+Authorization: Bearer {{customertoken}}
+
+#### Cancel order (pre-fulfillment)
+PATCH http://localhost:3000/orders/{{orderId}}/cancel
+Authorization: Bearer {{customertoken}}
+
+#### List order payments
+GET http://localhost:3000/orders/{{orderId}}/payments
+Authorization: Bearer {{customertoken}}
+
+#### Request refund for a payment
+POST http://localhost:3000/orders/{{orderId}}/payments/{{paymentId}}/refunds
+Content-Type: application/json
+Authorization: Bearer {{customertoken}}
+
+{
+  "amount": 100.0,
+  "reason": "duplicate"
+}
+
+#### List refunds for a payment
+GET http://localhost:3000/orders/{{orderId}}/payments/{{paymentId}}/refunds
+Authorization: Bearer {{customertoken}}
+
+#### List shipments for an order
+GET http://localhost:3000/orders/{{orderId}}/shipments
+Authorization: Bearer {{customertoken}}
+
+#### Track a shipment
+GET http://localhost:3000/shipments/{{shipmentId}}
+Authorization: Bearer {{customertoken}}
+
+### Users (via gateway)
+#### Create user (admin)
 POST http://localhost:3000/users
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 {
   "email": "bob@example.com",
@@ -86,47 +217,57 @@ Authorization: Bearer {{adminToken}}
   ]
 }
 
+#### List users (admin)
 GET http://localhost:3000/users
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
+#### List users filtered by email (admin)
+GET http://localhost:3000/users?email={{adminemail}}
+Authorization: Bearer {{admintoken}}
+
+#### Get user by id (admin)
 GET http://localhost:3000/users/{{userId}}
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
+#### Update user (admin)
 PATCH http://localhost:3000/users/{{userId}}
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 {
   "fullName": "Bob The Builder",
   "isActive": true
 }
 
+#### Delete user (admin)
 DELETE http://localhost:3000/users/{{userId}}
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
-### Customer profile via Gateway
+### My profile (self-service)
+#### Get my profile
 GET http://localhost:3000/me/profile
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
+#### Update my profile
 PATCH http://localhost:3000/me/profile
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
 {
-  "fullName": "Alice Updated",           // string: User's full name
-  "phoneNumber": "+91-9876543210",       // string: User's contact number (E.164 format recommended)
-  "dateOfBirth": "1990-01-01",           // string (ISO 8601): User's date of birth (optional)
+  "fullName": "Alice Updated",
+  "phoneNumber": "+91-9876543210",
+  "dateOfBirth": "1990-01-01",
   "preferences": {
-    "language": "en",                    // string: Preferred language code (e.g., 'en', 'hi')
-    "currency": "INR",                   // string: Preferred currency code (ISO 4217)
-    "newsletterSubscribed": true         // boolean: Whether user is subscribed to newsletters
+    "language": "en",
+    "currency": "INR",
+    "newsletterSubscribed": true
   }
 }
 
 ### Vendor (admin)
 POST http://localhost:3000/vendors
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 {
   "name": "Acme Corp",
@@ -135,49 +276,10 @@ Authorization: Bearer {{adminToken}}
   "gstNumber": "GST12345"
 }
 
-### Catalog (admin)
-POST http://localhost:3000/catalog/categories
-Content-Type: application/json
-Authorization: Bearer {{adminToken}}
-
-{ "name": "Shoes" }
-
-POST http://localhost:3000/catalog/products
-Content-Type: application/json
-Authorization: Bearer {{adminToken}}
-
-{
-  "name": "Running Shoe",
-  "categoryId": "{{categoryId}}",
-  "basePrice": 99.5,
-  "attributes": [{ "key": "color", "value": "red" }]
-}
-
-### Inventory
-POST http://localhost:3000/warehouses
-Content-Type: application/json
-Authorization: Bearer {{adminToken}}
-
-{ "name": "WH-1", "location": "NY" }
-
-POST http://localhost:3000/inventory/stock
-Content-Type: application/json
-Authorization: Bearer {{adminToken}}
-
-{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "onHand": 50 }
-
-POST http://localhost:3000/inventory/reserve
-Content-Type: application/json
-Authorization: Bearer {{adminToken}}
-
-{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "quantity": 2 }
-
-GET http://localhost:3000/inventory/SKU-1
-
-### Shipping
+### Shipping (admin fulfillment)
 POST http://localhost:3000/shipments
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 {
   "orderId": "{{orderId}}",
@@ -188,14 +290,14 @@ Authorization: Bearer {{adminToken}}
 
 PATCH http://localhost:3000/shipments/{{shipmentId}}/status
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 { "status": "in_transit", "trackingNumber": "TRK123" }
 
 ### Search (admin index + public query)
 POST http://localhost:3000/search/index
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 {
   "id": "doc-1",
@@ -214,7 +316,7 @@ GET http://localhost:3000/search/documents/doc-1
 ### Reviews
 POST http://localhost:3000/reviews
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
 {
   "targetId": "{{productId}}",
@@ -225,13 +327,13 @@ Authorization: Bearer {{token}}
 
 PATCH http://localhost:3000/reviews/{{reviewId}}/flag
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
 { "reason": "spam" }
 
 PATCH http://localhost:3000/reviews/{{reviewId}}/moderate
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 { "status": "approved", "moderatorNote": "ok" }
 
@@ -240,17 +342,17 @@ GET http://localhost:3000/reviews?targetId={{productId}}&targetType=product
 ### Analytics
 POST http://localhost:3000/analytics/events
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
 { "type": "order", "amount": 199.99, "currency": "USD", "status": "created" }
 
 GET http://localhost:3000/analytics/metrics
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 ### Admin actions
 POST http://localhost:3000/admin/actions
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 {
   "targetType": "review",
@@ -261,14 +363,14 @@ Authorization: Bearer {{adminToken}}
 
 PATCH http://localhost:3000/admin/actions/{{actionId}}
 Content-Type: application/json
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{admintoken}}
 
 { "status": "completed", "resolutionNote": "approved" }
 
 ### Notifications (Python service via gateway)
 POST http://localhost:3000/notifications
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
 {
   "channel": "email",
@@ -280,7 +382,7 @@ Authorization: Bearer {{token}}
 
 POST http://localhost:3000/notifications/webpush/register
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{customertoken}}
 
 {
   "endpoint": "https://push.example/123",
