@@ -15,7 +15,7 @@ import { Warehouse, WarehouseSchema } from './schemas/warehouse.schema';
     }),
     MongooseModule.forRootAsync({
       useFactory: () => ({
-        uri: process.env.MONGO_URL ?? 'mongodb://localhost:27017/ecommerce',
+        uri: process.env.MONGO_URL ?? 'mongodb://0.0.0.0:27017/ecommerce',
       }),
     }),
     MongooseModule.forFeature([

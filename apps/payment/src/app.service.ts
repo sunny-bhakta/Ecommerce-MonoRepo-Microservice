@@ -308,6 +308,90 @@ export class AppService {
     });
   }
 
+  async requestRefund(paymentId: string, dto: CreateRefundDto): Promise<PaymentRefundEntity> {
+    const payment = await this.paymentRepository.findOne({ where: { id: paymentId } });
+    if (!payment) {
+      throw new NotFoundException(`Payment ${paymentId} not found`);
+    }
+
+    const amount = dto.amount ?? payment.amount;
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('Refund amount must be greater than 0');
+    }
+
+    if (!payment.gatewayPaymentId) {
+      throw new BadRequestException('Payment does not have a provider payment id to refund');
+    }
+
+    let providerRefundId: string | undefined;
+    let providerStatus: string | null | undefined;
+
+    if (payment.provider === PaymentProvider.RAZORPAY) {
+      const result = await this.razorpayProvider.createRefund({
+        paymentId: payment.gatewayPaymentId,
+        amount,
+        currency: payment.currency,
+        reason: dto.reason ?? null,
+        notes: {
+          orderId: payment.orderId,
+          paymentId: payment.id,
+        },
+      });
+      providerRefundId = result.id;
+      providerStatus = result.status;
+    } else if (payment.provider === PaymentProvider.STRIPE) {
+      const result = await this.stripeProvider.refund({
+        paymentIntentId: payment.gatewayPaymentId,
+        amount,
+        reason: dto.reason,
+      });
+      providerRefundId = result.id;
+      providerStatus = result.status;
+    } else {
+      throw new BadRequestException(`Refund not supported for provider ${payment.provider}`);
+    }
+
+    const refund = this.paymentRefundRepository.create({
+      payment,
+      paymentId: payment.id,
+      amount,
+      currency: payment.currency,
+      reason: dto.reason ?? null,
+      gatewayRefundId: providerRefundId ?? null,
+      status: this.mapProviderRefundStatus(providerStatus),
+      metadata: { providerStatus },
+    });
+
+    return this.paymentRefundRepository.save(refund);
+  }
+
+  async listRefunds(paymentId: string): Promise<PaymentRefundEntity[]> {
+    const payment = await this.paymentRepository.findOne({ where: { id: paymentId } });
+    if (!payment) {
+      throw new NotFoundException(`Payment ${paymentId} not found`);
+    }
+
+    return this.paymentRefundRepository.find({
+      where: { paymentId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  private mapProviderRefundStatus(providerStatus?: string | null): RefundStatus {
+    if (!providerStatus) {
+      return RefundStatus.PROCESSING;
+    }
+
+    const normalized = providerStatus.toLowerCase();
+    if (['succeeded', 'success', 'processed', 'completed', 'paid'].includes(normalized)) {
+      return RefundStatus.COMPLETED;
+    }
+    if (['failed', 'canceled', 'cancelled', 'declined'].includes(normalized)) {
+      return RefundStatus.FAILED;
+    }
+    return RefundStatus.PROCESSING;
+  }
+
   async handleRazorpayWebhook(rawBody: string, signature: string | undefined, payload: any) {
     if (!signature) {
       throw new BadRequestException('Missing Razorpay signature header');
