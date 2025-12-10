@@ -14,7 +14,7 @@ import { Review, ReviewSchema } from './schemas/review.schema';
     }),
     MongooseModule.forRootAsync({
       useFactory: () => ({
-        uri: process.env.MONGO_URL ?? 'mongodb://localhost:27017/ecommerce',
+        uri: process.env.MONGO_URL ?? 'mongodb://0.0.0.0:27017/ecommerce',
       }),
     }),
     MongooseModule.forFeature([{ name: Review.name, schema: ReviewSchema }]),

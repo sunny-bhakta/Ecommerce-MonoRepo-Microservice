@@ -3,7 +3,7 @@
 Purpose: track stock per warehouse, handle reserve/release/allocate flows.
 
 - Port: 3050 (default)
-- Env: `INVENTORY_SERVICE_URL`, `MONGO_URL` (default `mongodb://localhost:27017/ecommerce`)
+- Env: `INVENTORY_SERVICE_URL`, `MONGO_URL` (default `mongodb://0.0.0.0:27017/ecommerce`)
 - Persistence: MongoDB (Mongoose) — collections `warehouses`, `stocks` (unique sku+warehouseId)
 - Key endpoints:
   - `GET /health`

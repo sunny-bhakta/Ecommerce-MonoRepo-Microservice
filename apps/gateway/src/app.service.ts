@@ -205,7 +205,7 @@ const DEFAULT_SERVICE_URLS: Record<DownstreamService, string> = {
   order: 'http://localhost:3060',
   payment: 'http://localhost:3070',
   user: 'http://localhost:3020',
-  auth: 'http://localhost:3050',
+  auth: 'http://localhost:3010',
   catalog: 'http://localhost:3040',
   vendor: 'http://localhost:3030',
   inventory: 'http://localhost:3050',
@@ -343,6 +343,7 @@ export class AppService {
   }
 
   async createCategory(dto: CreateCategoryDto) {
+    console.log('#00000000003');
     return this.postToService<CatalogCategory>(
       this.composeServiceUrl('catalog', '/categories'),
       dto,
@@ -651,7 +652,8 @@ export class AppService {
     const baseUrl = this.config.get<string>(envKey) ?? DEFAULT_SERVICE_URLS[service];
     const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
-    return `${normalizedBase}${normalizedPath}`;
+    console.log(`Composing service URL for ${service}: ${normalizedBase}/${service.toLowerCase()}${normalizedPath}`);
+    return `${normalizedBase}/${service.toLowerCase()}${normalizedPath}`;
   }
 
   private async collectDependencyHealth(): Promise<DependencyHealth[]> {

@@ -21,8 +21,8 @@ export interface RazorpayRefundInput {
   paymentId: string;
   amount: number;
   currency: string;
-  reason?: string;
-  notes?: Record<string, string>;
+  reason?: string | null;
+  notes?: Record<string, string | number | null>;
 }
 
 export interface RazorpayRefundResult {
@@ -55,18 +55,23 @@ export class RazorpayProvider {
   }
 
   async createRefund(input: RazorpayRefundInput): Promise<RazorpayRefundResult> {
+    const refundNotes =
+      input.reason !== undefined || input.notes
+        ? {
+            ...(input.notes ?? {}),
+            ...(input.reason !== undefined ? { reason: input.reason ?? null } : {}),
+          }
+        : undefined;
+
     const refund = await this.client.payments.refund(input.paymentId, {
       amount: Math.round(input.amount * 100),
-      notes: {
-        reason: input.reason,
-        ...(input.notes ?? {}),
-      },
+      notes: refundNotes,
     });
     return {
       id: refund.id,
       status: refund.status,
-      amount: refund.amount / 100,
-      currency: refund.currency,
+      amount: (refund.amount ?? 0) / 100,
+      currency: refund.currency ?? input.currency,
     };
   }
 

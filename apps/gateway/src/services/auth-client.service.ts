@@ -12,7 +12,7 @@ export class AuthClientService {
 
   constructor(private readonly http: HttpService, configService: ConfigService) {
     const configured = configService.get<string>('AUTH_SERVICE_URL');
-    this.baseUrl = configured ?? 'http://localhost:3050';
+    this.baseUrl = configured ?? 'http://localhost:3010';
   }
 
   async validateToken(accessToken: string): Promise<AuthenticatedUser> {
