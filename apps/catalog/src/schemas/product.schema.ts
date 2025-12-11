@@ -9,6 +9,15 @@ export class Attribute {
   value!: string;
 }
 
+@Schema({ _id: false, id: false, versionKey: false })
+export class OptionDefinition {
+  @Prop({ required: true })
+  name!: string;
+
+  @Prop({ type: [String], required: true })
+  values!: string[];
+}
+
 @Schema({ _id: true, id: false, versionKey: false })
 export class Variant {
   @Prop({ required: true })
@@ -54,6 +63,9 @@ export class Product {
 
   @Prop({ type: [{ key: String, value: String }], default: [] })
   attributes!: Attribute[];
+
+  @Prop({ type: [{ name: String, values: [String] }], default: [] })
+  options!: OptionDefinition[];
 
   @Prop({ type: [VariantSchema], default: [] })
   variants!: Variant[];

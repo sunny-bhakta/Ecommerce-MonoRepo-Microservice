@@ -4,7 +4,7 @@ import { AdjustmentDto } from './dto/adjustment.dto';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpsertStockDto } from './dto/upsert-stock.dto';
 
-@Controller()
+@Controller('inventory')
 export class InventoryController {
   constructor(private readonly appService: AppService) {}
 

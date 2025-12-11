@@ -10,7 +10,7 @@ export class OrderItemEntity {
   @Column()
   productId!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   sku?: string | null;
 
   @Column({ type: 'integer' })
