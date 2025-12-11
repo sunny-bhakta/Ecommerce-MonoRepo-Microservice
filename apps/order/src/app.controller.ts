@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AppService } from './app.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
-@Controller('orders')
+@Controller('order')
 export class OrderController {
   constructor(private readonly appService: AppService) {}
 
@@ -11,17 +11,17 @@ export class OrderController {
     return this.appService.health();
   }
 
-  @Post()
+  @Post('orders')
   create(@Body() dto: CreateOrderDto) {
     return this.appService.createOrder(dto);
   }
 
-  @Get()
+  @Get('orders/:userId')
   list(@Query('userId') userId?: string) {
     return this.appService.listOrders(userId);
   }
 
-  @Get(':id')
+  @Get('orders/:id')
   findOne(@Param('id') id: string) {
     return this.appService.getOrder(id);
   }

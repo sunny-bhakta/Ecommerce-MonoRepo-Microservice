@@ -38,7 +38,7 @@ export class OrderEntity {
   @Column({ type: 'text', default: OrderStatus.PENDING })
   status!: OrderStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentId?: string | null;
 
   @OneToMany(() => OrderItemEntity, (item) => item.order, {
