@@ -1,19 +1,19 @@
 ## Variables
-@customeremail=customer@example.com
+@customeremail=alice@example.com
 @customerpassword=Passw0rd!
-@customertoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDhiZDVlMS1iMTFiLTRhN2QtYmM2Mi03Mzk4MGE1MDAwM2UiLCJlbWFpbCI6ImN1c3RvbWVyQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiY3VzdG9tZXIiXSwiaWF0IjoxNzY1MzYwMjE4LCJleHAiOjE3NjUzNjExMTh9.PrMlMQ5UZFxlQ2H3U_kly6K7T4UQubArnfyzIqo04WE
+@customertoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDhiZDVlMS1iMTFiLTRhN2QtYmM2Mi03Mzk4MGE1MDAwM2UiLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiY3VzdG9tZXIiXSwiaWF0IjoxNzY1NDQ4MDc5LCJleHAiOjE3NjgwNDAwNzl9.4sIaPuXeGD5aImuvT4zVSxQH9xWmqKG0eFzL6DEsncc
 @adminemail=admin@example.com
 @adminpassword=Passw0rd!
 @adminfullname=Admin Example
 @adminroles=["admin"]
 @admintoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NTMwZTNlZS0zODQzLTRhZWUtODY2My01NTBjNWU3MjkwMTUiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiYWRtaW4iXSwiaWF0IjoxNzY1Mzc0ODcyLCJleHAiOjE3Njc5NjY4NzJ9.vaZT3vwy8h0zlbJituCB_VZ4z8pUyhI2fDPtuExKfxs
-@orderId={{orderId}}
+@orderId=647c0a21-9989-4a2d-a351-b0bcc2f974ad
 @paymentId={{paymentId}}
 @refundId={{refundId}}
 @shipmentId={{shipmentId}}
-@productId=6939989557edd564777af478
-@categoryId=6939986757edd564777af474
-@warehouseId={{warehouseId}}
+@productId=693a76b8fd8b83b3cc965388
+@categoryId=693a7471fd8b83b3cc965384
+@warehouseId=693a8ccb2a9805d132b75df9
 @reviewId={{reviewId}}
 @actionId={{actionId}}
 
@@ -32,7 +32,7 @@ Content-Type: application/json
   "roles": {{adminroles}}
 }
 
-### Login
+### Admin Login
 POST http://localhost:3010/auth/login
 Content-Type: application/json
 
@@ -41,9 +41,22 @@ Content-Type: application/json
   "password": "{{adminpassword}}"
 }
 
-### Current User (me)
+### Customer Login
+POST http://localhost:3010/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{customeremail}}",
+  "password": "{{customerpassword}}"
+}
+
+### Current User (admin)
 GET http://localhost:3010/auth/me
 Authorization: Bearer {{admintoken}}
+
+### Current User (customer)
+GET http://localhost:3010/auth/me
+Authorization: Bearer {{customertoken}}
 
 ### Change Password
 PATCH http://localhost:3010/auth/password
@@ -89,7 +102,19 @@ Authorization: Bearer {{admintoken}}
   "name": "Running Shoe",
   "categoryId": "{{categoryId}}",
   "basePrice": 99.5,
-  "attributes": [{ "key": "color", "value": "red" }]
+  "attributes": [{ "key": "brand", "value": "Acme" }],
+  "options": [
+    { "name": "color", "values": ["red", "blue"] },
+    { "name": "size", "values": ["41", "42", "43"] }
+  ],
+  "variants": [
+    {
+      "sku": "SKU-RED-41",
+      "price": 109.99,
+      "stock": 10,
+      "attributes": [{ "key": "color", "value": "red" }, { "key": "size", "value": "41" }]
+    }
+  ]
 }
 
 #### List products
@@ -104,10 +129,13 @@ Content-Type: application/json
 Authorization: Bearer {{admintoken}}
 
 {
-  "sku": "SKU-1",
+  "sku": "SKU-BLUE-42",
   "price": 109.99,
   "stock": 10,
-  "attributes": [{ "key": "size", "value": "42" }]
+  "attributes": [
+    { "key": "color", "value": "blue" },
+    { "key": "size", "value": "42" }
+  ]
 }
 
 #### List variants for product
@@ -130,16 +158,19 @@ POST http://localhost:3000/inventory/stock
 Content-Type: application/json
 Authorization: Bearer {{admintoken}}
 
-{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "onHand": 50 }
+{ "sku": "SKU-BLUE-42", "warehouseId": "{{warehouseId}}", "onHand": 50 }
 
 #### Reserve stock
 POST http://localhost:3000/inventory/reserve
 Content-Type: application/json
 Authorization: Bearer {{admintoken}}
 
-{ "sku": "SKU-1", "warehouseId": "{{warehouseId}}", "quantity": 2 }
+{ "sku": "SKU-BLUE-42", "warehouseId": "{{warehouseId}}", "quantity": 2 }
 
-GET http://localhost:3000/inventory/SKU-1
+
+#### Get inventory by SKU
+GET http://localhost:3000/inventory/SKU-BLUE-42
+
 
 ### Order lifecycle
 #### Checkout (create order + payment intent/order)
@@ -150,8 +181,12 @@ Authorization: Bearer {{customertoken}}
 {
   "currency": "INR",
   "items": [
-    { "productId": "p1", "quantity": 2, "price": 499.5 },
-    { "productId": "p2", "quantity": 1, "price": 899.0 }
+    {
+      "productId": "{{productId}}",
+      "sku": "SKU-BLUE-42",
+      "quantity": 2,
+      "price": 109.99
+    }
   ],
   "notes": "Deliver quickly",
   "paymentProvider": "razorpay"

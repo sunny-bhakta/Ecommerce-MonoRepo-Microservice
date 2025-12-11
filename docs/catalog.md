@@ -19,3 +19,8 @@ Purpose: manage categories, products, and variants (attributes, SKU/price/stock 
 - Add pricing rules (discounts, tax classes) and media (images).
 - Add slugs/SEO fields and soft-delete/archive for products.
 
+## Variants & Options
+- Products can define `options` (array of `{ name, values[] }`). Variant attributes must use only these option names and allowed values.
+- Variant option combinations are validated for uniqueness per product.
+- Set `CATALOG_USE_VARIANT_COLLECTION=true` to store variants in a dedicated `variants` collection (prefer for products with many variants). Default keeps variants embedded on the product document.
+
