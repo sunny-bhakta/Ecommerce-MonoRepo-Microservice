@@ -6,6 +6,7 @@ import { CatalogController } from './app.controller';
 import { AppService } from './app.service';
 import { CategoryEntity, CategorySchema } from './schemas/category.schema';
 import { Product, ProductSchema } from './schemas/product.schema';
+import { VariantCollection, VariantCollectionSchema } from './schemas/variant-collection.schema';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { Product, ProductSchema } from './schemas/product.schema';
     MongooseModule.forFeature([
       { name: CategoryEntity.name, schema: CategorySchema },
       { name: Product.name, schema: ProductSchema },
+      { name: VariantCollection.name, schema: VariantCollectionSchema },
     ]),
   ],
   controllers: [CatalogController],

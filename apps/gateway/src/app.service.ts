@@ -700,6 +700,7 @@ export class AppService {
 
   private async postToService<T>(url: string, payload: unknown, context: string): Promise<T> {
     try {
+      console.log('#000000000011', url);
       const response = await lastValueFrom(this.http.post<T>(url, payload));
       return response.data;
     } catch (error) {
