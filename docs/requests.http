@@ -7,7 +7,7 @@
 @adminfullname=Admin Example
 @adminroles=["admin"]
 @admintoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NTMwZTNlZS0zODQzLTRhZWUtODY2My01NTBjNWU3MjkwMTUiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiYWRtaW4iXSwiaWF0IjoxNzY1Mzc0ODcyLCJleHAiOjE3Njc5NjY4NzJ9.vaZT3vwy8h0zlbJituCB_VZ4z8pUyhI2fDPtuExKfxs
-@orderId=647c0a21-9989-4a2d-a351-b0bcc2f974ad
+@orderId=bf11a4f9-33b4-4059-bb9f-63383fa93a40
 @paymentId={{paymentId}}
 @refundId={{refundId}}
 @shipmentId={{shipmentId}}
@@ -191,6 +191,21 @@ Authorization: Bearer {{customertoken}}
   "notes": "Deliver quickly",
   "paymentProvider": "razorpay"
 }
+
+
+### Test
+# POST http://localhost:3070/payment/payments
+# Content-Type: application/json
+# Authorization: Bearer {{customertoken}}
+
+# {
+#   "currency": "INR",
+#   "orderId": "{{orderId}}",
+#   "userId": "2d8bd5e1-b11b-4a7d-bc62-73980a50003e",
+#   "amount": 219.98,
+#   "status": "pending",
+#   "provider": "razorpay"
+# }
 
 #### List my orders
 GET http://localhost:3000/orders

@@ -1,4 +1,4 @@
-import { INestApplication, Type } from '@nestjs/common';
+import { INestApplication, Type, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -26,13 +26,20 @@ export async function bootstrapHttpService(
   app.useLogger(logger);
   const requestContextMiddleware = new RequestContextMiddleware();
   app.use(requestContextMiddleware.use.bind(requestContextMiddleware));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   app.useGlobalInterceptors(new LoggingInterceptor(logger));
   app.useGlobalFilters(new HttpExceptionLoggingFilter(logger));
   const configService = app.get(ConfigService);
 
   if (options.enableMicroservice ?? true) {
     //todo uncomment this when rmq is ready
-    // connectRmqMicroservice(app, configService, options.serviceName);
+    connectRmqMicroservice(app, configService, options.serviceName);
     await app.startAllMicroservices();
   }
 
@@ -77,7 +84,8 @@ function createRmqOptions(
   const envKey = `${serviceName.toUpperCase()}_QUEUE`;
   const rmqUrl = overrideUrl ?? envResolver?.('RABBITMQ_URL') ?? process.env.RABBITMQ_URL ?? 'amqp://localhost:5672';
   const queue = envResolver?.(envKey) ?? process.env[envKey] ?? `${serviceName}_queue`;
-
+  // console.log("#000008111112 => ", rmqUrl, queue, queue);
+  // console.log("#000008111113 => ", process.env.RABBITMQ_URL);
   return {
     transport: Transport.RMQ,
     options: {

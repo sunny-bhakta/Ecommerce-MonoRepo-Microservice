@@ -35,7 +35,7 @@
     "start:dev:search": "nest start --watch search",
     "start:pro:search": "nest start search",
     "start:dev:core1": "npm-run-all --parallel start:dev:gateway start:dev:auth start:dev:user start:dev:vendor start:dev:catalog start:dev:inventory start:dev:order start:dev:payment start:dev:shipping start:dev:review start:dev:analytics start:dev:admin start:dev:search",
-    "start:pro:core": "npm-run-all --parallel start:pro:auth start:pro:user start:pro:catalog start:pro:inventory",
+    "start:pro:core": "npm-run-all --parallel start:pro:gateway start:pro:auth start:pro:order start:pro:payment",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
