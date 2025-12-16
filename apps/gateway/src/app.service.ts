@@ -9,6 +9,7 @@ import {
   CheckoutPaymentProvider,
   CheckoutRequestDto,
 } from './dto/checkout-request.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateGatewayUserDto, UpdateGatewayUserDto } from './dto/user-profile.dto';
 import { AuthenticatedUser } from './interfaces/authenticated-user.interface';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -31,6 +32,8 @@ import { CreateAdminActionDto } from './dto/create-admin-action.dto';
 import { UpdateAdminActionDto } from './dto/update-admin-action.dto';
 import { SendNotificationDto } from './dto/send-notification.dto';
 import { WebpushRegistrationDto } from './dto/webpush-registration.dto';
+import { CreateRefundDto } from './dto/create-refund.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 
 type DownstreamService =
   | 'order'
@@ -273,6 +276,41 @@ export class AppService {
     };
   }
 
+  async createOrder(dto: CreateOrderDto, user: AuthenticatedUser) {
+    const totalAmount = dto.totalAmount ?? this.calculateTotal(dto.items);
+    const payload = {
+      ...dto,
+      totalAmount,
+      userId: dto.userId ?? user.id,
+    }; 
+
+    return this.postToService<OrderResponse>(
+      this.composeServiceUrl('order', '/orders'),
+      payload,
+      'order service',
+    );
+  }
+
+  async listOrders(requestingUser: AuthenticatedUser, userId?: string) {
+    const resolvedUserId = requestingUser.roles?.includes('admin') && userId ? userId : requestingUser.id;
+    const params = new URLSearchParams();
+    if (resolvedUserId) {
+      params.append('userId', resolvedUserId);
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.getFromService<OrderResponse[]>(
+      this.composeServiceUrl('order', `/orders${query}`),
+      'order service',
+    );
+  }
+
+  async getOrder(id: string) {
+    return this.getFromService<OrderResponse>(
+      this.composeServiceUrl('order', `/orders/${id}`),
+      'order service',
+    );
+  }
+
   async getOrderAggregate(orderId: string) {
     const [order, payments] = await Promise.all([
       this.getFromService<OrderResponse>(
@@ -280,7 +318,7 @@ export class AppService {
         'order service',
       ),
       this.getFromService<PaymentResponse[]>(
-        this.composeServiceUrl('payment', `/payments?orderId=${encodeURIComponent(orderId)}`),
+        this.composeServiceUrl('payment', `?orderId=${encodeURIComponent(orderId)}`),
         'payment service',
       ),
     ]);
@@ -289,6 +327,70 @@ export class AppService {
       order,
       payments,
     };
+  }
+
+  async listOrderPayments(orderId: string, user: AuthenticatedUser) {
+    const params = new URLSearchParams({ orderId });
+    if (user?.id) {
+      params.append('userId', user.id);
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.getFromService<PaymentResponse[]>(
+      this.composeServiceUrl('payment', query),
+      'payment service',
+    );
+  }
+
+  async createPayment(dto: CreatePaymentDto, user: AuthenticatedUser) {
+    const payload = {
+      ...dto,
+      userId: dto.userId ?? user.id,
+    };
+    console.log("createPayment-002", payload);
+    console.log("createPayment-003", this.composeServiceUrl('payment', '/payments'));
+    console.log("createPayment-004", 'payment service');
+    return this.postToService<PaymentResponse>(
+      this.composeServiceUrl('payment', '/payments'),
+      payload,
+      'payment service',
+    );
+  }
+
+  async listPayments(requestingUser: AuthenticatedUser, orderId?: string, userId?: string) {
+    const params = new URLSearchParams();
+    if (orderId) params.append('orderId', orderId);
+    if (requestingUser?.roles?.includes('admin')) {
+      if (userId) params.append('userId', userId);
+    } else if (requestingUser?.id) {
+      params.append('userId', requestingUser.id);
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.getFromService<PaymentResponse[]>(
+      this.composeServiceUrl('payment', query),
+      'payment service',
+    );
+  }
+
+  async getPayment(paymentId: string) {
+    return this.getFromService<PaymentResponse>(
+      this.composeServiceUrl('payment', `/${paymentId}`),
+      'payment service',
+    );
+  }
+
+  async requestRefund(paymentId: string, dto: CreateRefundDto) {
+    return this.postToService(
+      this.composeServiceUrl('payment', `/${paymentId}/refund`),
+      dto,
+      'payment service',
+    );
+  }
+
+  async listRefunds(paymentId: string) {
+    return this.getFromService(
+      this.composeServiceUrl('payment', `/${paymentId}/refunds`),
+      'payment service',
+    );
   }
 
   async createUser(dto: CreateGatewayUserDto) {
@@ -700,7 +802,7 @@ export class AppService {
 
   private async postToService<T>(url: string, payload: unknown, context: string): Promise<T> {
     try {
-      console.log('#000000000011', url);
+      console.log('postToService #000000000011 => ', url);
       const response = await lastValueFrom(this.http.post<T>(url, payload));
       return response.data;
     } catch (error) {

@@ -27,6 +27,9 @@ import { CreateAdminActionDto } from './dto/create-admin-action.dto';
 import { UpdateAdminActionDto } from './dto/update-admin-action.dto';
 import { SendNotificationDto } from './dto/send-notification.dto';
 import { WebpushRegistrationDto } from './dto/webpush-registration.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { CreateRefundDto } from './dto/create-refund.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 
 @Controller()
 export class GatewayController {
@@ -44,9 +47,103 @@ export class GatewayController {
   }
 
   @UseGuards(GatewayAuthGuard)
+  @Post('orders')
+  createOrder(@Body() dto: CreateOrderDto, @CurrentUser() user: AuthenticatedUser): Promise<unknown> {
+    return this.appService.createOrder(dto, user);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('orders')
+  listOrders(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('userId') userId?: string,
+  ): Promise<unknown> {
+    return this.appService.listOrders(user, userId);
+  }
+
+  @UseGuards(GatewayAuthGuard)
   @Get('orders/:orderId/summary')
   getOrderSummary(@Param('orderId') orderId: string): Promise<unknown> {
     return this.appService.getOrderAggregate(orderId);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('orders/:id')
+  getOrder(@Param('id') id: string): Promise<unknown> {
+    return this.appService.getOrder(id);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('orders/:orderId/payments')
+  listOrderPayments(
+    @Param('orderId') orderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.appService.listOrderPayments(orderId, user);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('orders/:orderId/payments/:paymentId')
+  getOrderPayment(@Param('paymentId') paymentId: string): Promise<unknown> {
+    return this.appService.getPayment(paymentId);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Post('orders/:orderId/payments/:paymentId/refunds')
+  requestRefund(
+    @Param('paymentId') paymentId: string,
+    @Body() dto: CreateRefundDto,
+  ): Promise<unknown> {
+    return this.appService.requestRefund(paymentId, dto);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('orders/:orderId/payments/:paymentId/refunds')
+  listRefunds(@Param('paymentId') paymentId: string): Promise<unknown> {
+    return this.appService.listRefunds(paymentId);
+  }
+
+  // Payment service direct routes
+  @UseGuards(GatewayAuthGuard)
+  @Post('payment/payments')
+  createPayment(
+    @Body() dto: CreatePaymentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<unknown> {
+    // this.logger.log("createPayment-001", dto, user);
+    console.log("createPayment-001", dto, user);
+    return this.appService.createPayment(dto, user);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('payment/payments')
+  listPayments(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('orderId') orderId?: string,
+    @Query('userId') userId?: string,
+  ): Promise<unknown> {
+    return this.appService.listPayments(user, orderId, userId);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('payment/payments/:paymentId')
+  getPayment(@Param('paymentId') paymentId: string): Promise<unknown> {
+    return this.appService.getPayment(paymentId);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Post('payment/payments/:paymentId/refund')
+  refundPayment(
+    @Param('paymentId') paymentId: string,
+    @Body() dto: CreateRefundDto,
+  ): Promise<unknown> {
+    return this.appService.requestRefund(paymentId, dto);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('payment/payments/:paymentId/refunds')
+  listPaymentRefunds(@Param('paymentId') paymentId: string): Promise<unknown> {
+    return this.appService.listRefunds(paymentId);
   }
 
   @UseGuards(GatewayAuthGuard)
@@ -223,6 +320,12 @@ export class GatewayController {
   @Post('shipments')
   createShipment(@Body() dto: CreateShipmentDto): Promise<unknown> {
     return this.appService.createShipment(dto);
+  }
+
+  @UseGuards(GatewayAuthGuard)
+  @Get('orders/:orderId/shipments')
+  listShipmentsForOrder(@Param('orderId') orderId: string): Promise<unknown> {
+    return this.appService.listShipments(orderId);
   }
 
   @Get('shipments')

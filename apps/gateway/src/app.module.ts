@@ -14,7 +14,8 @@ import { RolesGuard } from './guards/roles.guard';
       envFilePath: ['.env.local', '.env'],
     }),
     HttpModule.register({
-      timeout: 5000,
+      // timeout: 5000,
+      timeout: 900000,
       maxRedirects: 0,
     }),
   ],
