@@ -41,6 +41,11 @@ export class CheckoutRequestDto {
   @IsNotEmpty()
   currency!: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  shippingAddress!: string;
+
   @IsOptional()
   @IsNumber()
   @IsPositive()

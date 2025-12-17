@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { AppService, Category, Product, Variant } from './app.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateVariantDto } from './dto/create-variant.dto';
+import { UpdateProductStatusDto } from './dto/update-product-status.dto';
 
 @Controller('catalog')
 export class CatalogController {
@@ -29,8 +30,11 @@ export class CatalogController {
   }
 
   @Get('products')
-  listProducts(): Promise<Product[]> {
-    return this.appService.listProducts();
+  listProducts(
+    @Query('vendorId') vendorId?: string,
+    @Query('status') status?: 'pending' | 'approved' | 'rejected',
+  ): Promise<Product[]> {
+    return this.appService.listProducts(vendorId, status);
   }
 
   @Get('products/:id')
@@ -49,5 +53,13 @@ export class CatalogController {
   @Get('products/:productId/variants')
   listVariants(@Param('productId') productId: string): Promise<Variant[]> {
     return this.appService.listVariants(productId);
+  }
+
+  @Patch('products/:productId/status')
+  updateProductStatus(
+    @Param('productId') productId: string,
+    @Body() dto: UpdateProductStatusDto,
+  ): Promise<Product> {
+    return this.appService.updateProductStatus(productId, dto.status);
   }
 }

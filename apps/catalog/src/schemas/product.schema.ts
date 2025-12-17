@@ -58,6 +58,9 @@ export class Product {
   @Prop({ required: true })
   categoryId!: string;
 
+  @Prop({ required: false })
+  vendorId?: string;
+
   @Prop({ required: true })
   basePrice!: number;
 
@@ -69,6 +72,9 @@ export class Product {
 
   @Prop({ type: [VariantSchema], default: [] })
   variants!: Variant[];
+
+  @Prop({ default: 'pending', enum: ['pending', 'approved', 'rejected'] })
+  status!: 'pending' | 'approved' | 'rejected';
 }
 
 export type ProductDocument = HydratedDocument<Product>;
