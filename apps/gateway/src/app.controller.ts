@@ -30,6 +30,8 @@ import { WebpushRegistrationDto } from './dto/webpush-registration.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { AuthLoginDto, RegisterVendorDto } from './dto/auth.dto';
+import { UpdateProductStatusDto } from './dto/update-product-status.dto';
 
 @Controller()
 export class GatewayController {
@@ -38,6 +40,16 @@ export class GatewayController {
   @Get('health')
   health(): Promise<unknown> {
     return this.appService.health();
+  }
+
+  @Post('auth/vendor/register')
+  registerVendor(@Body() dto: RegisterVendorDto): Promise<unknown> {
+    return this.appService.registerVendor(dto);
+  }
+
+  @Post('auth/vendor/login')
+  vendorLogin(@Body() dto: AuthLoginDto): Promise<unknown> {
+    return this.appService.vendorLogin(dto);
   }
 
   @UseGuards(GatewayAuthGuard)
@@ -57,8 +69,9 @@ export class GatewayController {
   listOrders(
     @CurrentUser() user: AuthenticatedUser,
     @Query('userId') userId?: string,
+    @Query('vendorId') vendorId?: string,
   ): Promise<unknown> {
-    return this.appService.listOrders(user, userId);
+    return this.appService.listOrders(user, userId, vendorId);
   }
 
   @UseGuards(GatewayAuthGuard)
@@ -177,6 +190,13 @@ export class GatewayController {
 
   @UseGuards(GatewayAuthGuard, RolesGuard)
   @Roles('admin')
+  @Get('users/email/:email')
+  getUserByEmail(@Param('email') email: string): Promise<unknown> {
+    return this.appService.getUserByEmail(email);
+  }
+
+  @UseGuards(GatewayAuthGuard, RolesGuard)
+  @Roles('admin')
   @Get('users/:id')
   getUser(@Param('id') id: string): Promise<unknown> {
     return this.appService.getUser(id);
@@ -209,15 +229,31 @@ export class GatewayController {
   }
 
   @UseGuards(GatewayAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'vendor')
   @Post('catalog/products')
-  createProduct(@Body() dto: CreateProductDto): Promise<unknown> {
-    return this.appService.createProduct(dto);
+  createProduct(
+    @Body() dto: CreateProductDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.appService.createProduct(dto, user);
   }
 
   @Get('catalog/products')
-  listProducts(): Promise<unknown> {
-    return this.appService.listProducts();
+  listProducts(
+    @Query('vendorId') vendorId?: string,
+    @Query('status') status?: 'pending' | 'approved' | 'rejected',
+  ): Promise<unknown> {
+    return this.appService.listProducts(vendorId, status);
+  }
+
+  @UseGuards(GatewayAuthGuard, RolesGuard)
+  @Roles('vendor')
+  @Get('catalog/my-products')
+  listMyProducts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('status') status?: 'pending' | 'approved' | 'rejected',
+  ): Promise<unknown> {
+    return this.appService.listProducts(user.id, status);
   }
 
   @Get('catalog/products/:id')
@@ -226,13 +262,24 @@ export class GatewayController {
   }
 
   @UseGuards(GatewayAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'vendor')
   @Post('catalog/products/:productId/variants')
   addVariant(
     @Param('productId') productId: string,
     @Body() dto: CreateVariantDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<unknown> {
-    return this.appService.addVariant(productId, dto);
+    return this.appService.addVariant(productId, dto, user);
+  }
+
+  @UseGuards(GatewayAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Patch('catalog/products/:productId/status')
+  updateProductStatus(
+    @Param('productId') productId: string,
+    @Body() dto: UpdateProductStatusDto,
+  ): Promise<unknown> {
+    return this.appService.updateProductStatus(productId, dto.status);
   }
 
   @Get('catalog/products/:productId/variants')

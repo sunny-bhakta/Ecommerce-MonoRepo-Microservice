@@ -4,7 +4,7 @@ Purpose: manage shipments with carrier, tracking, and status updates.
 
 - Port: 3080 (default)
 - Env: `SHIPPING_SERVICE_URL`
-- Storage: in-memory (placeholder)
+- Storage: SQLite via TypeORM (file at `data/shipping/shipping.db` by default)
 - Key endpoints:
   - `GET /health`
   - `POST /shipments`

@@ -28,7 +28,7 @@ export class PaymentEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Index()
+  @Index('idx_payments_order_unique', { unique: true })
   @Column()
   orderId!: string;
 
@@ -50,7 +50,7 @@ export class PaymentEntity {
   @Column({ type: 'text', nullable: true })
   gatewayPaymentId?: string | null;
 
-  @Column({ type: 'text', default: PaymentProvider.STRIPE })
+  @Column({ type: 'text' })
   provider!: PaymentProvider;
 
   @Column({ type: 'text', nullable: true })

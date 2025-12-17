@@ -1,4 +1,4 @@
-import Razorpay from 'razorpay';
+import type Razorpay from 'razorpay';
 
 export interface RazorpayConfig {
   keyId: string;
@@ -32,13 +32,24 @@ export interface RazorpayRefundResult {
   currency: string;
 }
 
+type RazorpayCtor = new (args: { key_id: string; key_secret: string }) => Razorpay;
+type RazorpayStatic = { validateWebhookSignature?: (payload: string, signature: string, secret: string) => boolean };
+
+// Handle both CJS and ESM shapes of the SDK and avoid undefined imports
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const razorpayModule = require('razorpay') as { default?: RazorpayCtor } & RazorpayStatic & RazorpayCtor;
+const RazorpayCtor = (razorpayModule.default ?? (razorpayModule as unknown as RazorpayCtor)) as RazorpayCtor;
+const validateWebhookSignatureFn =
+  (razorpayModule as RazorpayStatic).validateWebhookSignature ??
+  ((RazorpayCtor as unknown as RazorpayStatic).validateWebhookSignature ?? null);
+
 export class RazorpayProvider {
   private readonly client: Razorpay;
   private readonly keySecret: string;
 
   constructor(config: RazorpayConfig) {
     this.keySecret = config.keySecret;
-    this.client = new Razorpay({
+    this.client = new RazorpayCtor({
       key_id: config.keyId,
       key_secret: config.keySecret,
     });
@@ -76,7 +87,7 @@ export class RazorpayProvider {
   }
 
   validateWebhookSignature(payload: string, signature: string): boolean {
-    return Razorpay.validateWebhookSignature(payload, signature, this.keySecret);
+    return validateWebhookSignatureFn ? validateWebhookSignatureFn(payload, signature, this.keySecret) : false;
   }
 }
 

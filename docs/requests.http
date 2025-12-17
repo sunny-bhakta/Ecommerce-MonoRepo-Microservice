@@ -7,13 +7,19 @@
 @adminfullname=Admin Example
 @adminroles=["admin"]
 @admintoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NTMwZTNlZS0zODQzLTRhZWUtODY2My01NTBjNWU3MjkwMTUiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiYWRtaW4iXSwiaWF0IjoxNzY1Mzc0ODcyLCJleHAiOjE3Njc5NjY4NzJ9.vaZT3vwy8h0zlbJituCB_VZ4z8pUyhI2fDPtuExKfxs
+@vendoremail=vendor@example.com
+@vendorpassword=Passw0rd!
+@vendortoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjNzZkODQ2YS02MGUxLTQxYTQtOWRjNS05YmQzNmY4MDQ5NzkiLCJlbWFpbCI6InZlbmRvckBleGFtcGxlLmNvbSIsInJvbGVzIjpbInZlbmRvciJdLCJpYXQiOjE3NjU5NTkzMTQsImV4cCI6MTc2ODU1MTMxNH0.ms5PFNlKRJfxkl036m7kT52qRRJBlH8i5Fr2j3lgR-A
+@vendorfullname=Vendor Example
+@vendorroles=["vendor"]
 @orderId=bf11a4f9-33b4-4059-bb9f-63383fa93a40
 @paymentId={{paymentId}}
 @refundId={{refundId}}
 @shipmentId={{shipmentId}}
 @productId=693a76b8fd8b83b3cc965388
-@categoryId=693a7471fd8b83b3cc965384
+@categoryId=6942656c6da85e335a182fcc
 @warehouseId=693a8ccb2a9805d132b75df9
+@vendorId={{vendorId}}
 @reviewId={{reviewId}}
 @actionId={{actionId}}
 
@@ -50,6 +56,28 @@ Content-Type: application/json
   "password": "{{customerpassword}}"
 }
 
+# Vendor Service (port 3030, via gateway 3000)
+### Vendor Register
+POST http://localhost:3000/auth/vendor/register
+Content-Type: application/json
+
+{
+  "email": "{{vendoremail}}",
+  "password": "{{vendorpassword}}",
+  "fullName": "{{vendorfullname}}"
+}
+
+
+### Vendor Login
+POST http://localhost:3010/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{vendoremail}}",
+  "password": "{{vendorpassword}}"
+}
+
+
 ### Current User (admin)
 GET http://localhost:3010/auth/me
 Authorization: Bearer {{admintoken}}
@@ -72,16 +100,17 @@ Authorization: Bearer {{admintoken}}
 GET http://localhost:3010/auth/users
 Authorization: Bearer {{admintoken}}
 
+
 ## Gateway (port 3000) — primary entrypoint
 > All business operations below are routed through the API gateway (`http://localhost:3000`). Do not call downstream services directly from clients.
 
 ### Health
 GET http://localhost:3000/health
 
-
 ### Catalog
 #### Health
 GET http://localhost:3000/catalog/health
+
 
 #### Create category (admin)
 POST http://localhost:3000/catalog/categories
@@ -117,8 +146,35 @@ Authorization: Bearer {{admintoken}}
   ]
 }
 
-#### List products
+#### Create product (vendor, goes pending)
+POST http://localhost:3000/catalog/products
+Content-Type: application/json
+Authorization: Bearer {{vendortoken}}
+
+{
+  "name": "Vendor Item",
+  "categoryId": "{{categoryId}}",
+  "basePrice": 49.99,
+  "attributes": [{ "key": "brand", "value": "VendorBrand" }]
+}
+
+#### List products (public; only approved returned)
 GET http://localhost:3000/catalog/products
+
+#### List products by vendor (admin view with status filter)
+GET http://localhost:3000/catalog/products?vendorId={{vendorId}}&status=pending
+Authorization: Bearer {{admintoken}}
+
+#### List my products (vendor)
+GET http://localhost:3000/catalog/my-products
+Authorization: Bearer {{vendortoken}}
+
+#### Approve/reject product (admin)
+PATCH http://localhost:3000/catalog/products/{{productId}}/status
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{ "status": "approved" }
 
 #### Get product by id
 GET http://localhost:3000/catalog/products/{{productId}}
@@ -141,17 +197,13 @@ Authorization: Bearer {{admintoken}}
 #### List variants for product
 GET http://localhost:3000/catalog/products/{{productId}}/variants
 
-
-
 ### Inventory (admin)
-
 #### Create Warehouse
 POST http://localhost:3000/warehouses
 Content-Type: application/json
 Authorization: Bearer {{admintoken}}
 
 { "name": "WH-1", "location": "NY" }
-
 
 #### Manage stock
 POST http://localhost:3000/inventory/stock
@@ -167,12 +219,10 @@ Authorization: Bearer {{admintoken}}
 
 { "sku": "SKU-BLUE-42", "warehouseId": "{{warehouseId}}", "quantity": 2 }
 
-
 #### Get inventory by SKU
 GET http://localhost:3000/inventory/SKU-BLUE-42
 
-
-### Order lifecycle
+### Orders, payments, and shipments
 #### Checkout (create order + payment intent/order)
 POST http://localhost:3000/checkout
 Content-Type: application/json
@@ -192,24 +242,13 @@ Authorization: Bearer {{customertoken}}
   "paymentProvider": "razorpay"
 }
 
-
-### Test
-# POST http://localhost:3070/payment/payments
-# Content-Type: application/json
-# Authorization: Bearer {{customertoken}}
-
-# {
-#   "currency": "INR",
-#   "orderId": "{{orderId}}",
-#   "userId": "2d8bd5e1-b11b-4a7d-bc62-73980a50003e",
-#   "amount": 219.98,
-#   "status": "pending",
-#   "provider": "razorpay"
-# }
-
 #### List my orders
 GET http://localhost:3000/orders
 Authorization: Bearer {{customertoken}}
+
+#### List vendor orders (vendor sees only their items)
+GET http://localhost:3000/orders
+Authorization: Bearer {{vendortoken}}
 
 #### Order detail / summary
 GET http://localhost:3000/orders/{{orderId}}/summary
@@ -241,9 +280,49 @@ Authorization: Bearer {{customertoken}}
 GET http://localhost:3000/orders/{{orderId}}/shipments
 Authorization: Bearer {{customertoken}}
 
-#### Track a shipment
+#### Track a shipment (customer)
 GET http://localhost:3000/shipments/{{shipmentId}}
 Authorization: Bearer {{customertoken}}
+
+#### Create shipment (admin)
+POST http://localhost:3000/shipments
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{
+  "orderId": "{{orderId}}",
+  "carrier": "dhl",
+  "destination": "123 Main St, City",
+  "trackingNumber": "TRK123"
+}
+
+#### List shipments (optional order filter)
+GET http://localhost:3000/shipments?orderId={{orderId}}
+Authorization: Bearer {{admintoken}}
+
+#### Update shipment status (admin)
+PATCH http://localhost:3000/shipments/{{shipmentId}}/status
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{ "status": "in_transit", "trackingNumber": "TRK123" }
+
+#### Shipping service health (downstream)
+GET http://localhost:3080/health
+
+### Test (payments service, optional)
+# POST http://localhost:3070/payment/payments
+# Content-Type: application/json
+# Authorization: Bearer {{customertoken}}
+#
+# {
+#   "currency": "INR",
+#   "orderId": "{{orderId}}",
+#   "userId": "2d8bd5e1-b11b-4a7d-bc62-73980a50003e",
+#   "amount": 219.98,
+#   "status": "pending",
+#   "provider": "razorpay"
+# }
 
 ### Users (via gateway)
 #### Create user (admin)
@@ -252,17 +331,24 @@ Content-Type: application/json
 Authorization: Bearer {{admintoken}}
 
 {
-  "email": "bob@example.com",
-  "fullName": "Bob Builder",
+  "email": "alice@example.com",
+  "fullName": "Alice Smith",
   "phoneNumber": "+1-555-0101",
   "addresses": [
     {
       "label": "home",
-      "line1": "221B Baker Street",
+      "line1": "1-221B Baker Street",
       "city": "London",
       "country": "UK",
       "postalCode": "NW16XE",
       "isDefault": true
+    },
+    {
+      "label": "office",
+      "line1": "221B Baker Street",
+      "city": "London",
+      "country": "UK",
+      "postalCode": "NW16XE"
     }
   ]
 }
@@ -325,24 +411,6 @@ Authorization: Bearer {{admintoken}}
   "companyName": "Acme Corp Ltd",
   "gstNumber": "GST12345"
 }
-
-### Shipping (admin fulfillment)
-POST http://localhost:3000/shipments
-Content-Type: application/json
-Authorization: Bearer {{admintoken}}
-
-{
-  "orderId": "{{orderId}}",
-  "carrier": "dhl",
-  "destination": "123 Main St, City",
-  "trackingNumber": "TRK123"
-}
-
-PATCH http://localhost:3000/shipments/{{shipmentId}}/status
-Content-Type: application/json
-Authorization: Bearer {{admintoken}}
-
-{ "status": "in_transit", "trackingNumber": "TRK123" }
 
 ### Search (admin index + public query)
 POST http://localhost:3000/search/index
@@ -439,3 +507,4 @@ Authorization: Bearer {{customertoken}}
   "p256dh": "key",
   "auth": "authkey"
 }
+

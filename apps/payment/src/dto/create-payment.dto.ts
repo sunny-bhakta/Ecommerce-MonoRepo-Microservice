@@ -20,7 +20,8 @@ export class CreatePaymentDto {
   currency!: string;
 
   @IsEnum(PaymentProvider)
-  provider: PaymentProvider = PaymentProvider.STRIPE;
+  @IsOptional()
+  provider?: PaymentProvider;
 
   @IsEnum(PaymentStatus)
   @IsOptional()

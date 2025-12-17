@@ -46,6 +46,12 @@ export interface Variant {
   attributes: Attribute[];
 }
 
+export enum ProductStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -55,6 +61,8 @@ export interface Product {
   attributes: Attribute[];
   options: OptionDefinition[];
   variants: Variant[];
+  vendorId?: string;
+  status?: ProductStatus;
 }
 
 @Injectable()
@@ -112,6 +120,7 @@ export class AppService {
       name: dto.name,
       description: dto.description,
       categoryId: dto.categoryId,
+      vendorId: dto.vendorId,
       basePrice: dto.basePrice,
       attributes: dto.attributes ?? [],
       options,
@@ -121,6 +130,7 @@ export class AppService {
             ...this.stripCombinationKey(variant),
             _id: variant.id,
           })),
+      status: dto.status ?? 'pending',
     };
 
     const product = await this.productModel.create(baseProductPayload);
@@ -143,8 +153,15 @@ export class AppService {
     return this.mapProduct(product, this.useVariantCollection ? variantsWithKeys : undefined);
   }
 
-  async listProducts(): Promise<Product[]> {
-    const products = await this.productModel.find().lean({ virtuals: true }).exec();
+  async listProducts(
+    vendorId?: string,
+    status?: 'pending' | 'approved' | 'rejected',
+  ): Promise<Product[]> {
+    const filter: Record<string, unknown> = {};
+    if (vendorId) filter.vendorId = vendorId;
+    if (status) filter.status = status;
+
+    const products = await this.productModel.find(filter).lean({ virtuals: true }).exec();
     if (!this.useVariantCollection) {
       return products.map((product) => this.mapProduct(product));
     }
@@ -308,6 +325,31 @@ export class AppService {
     };
   }
 
+  async updateProductStatus(
+    id: string,
+    status: 'pending' | 'approved' | 'rejected',
+  ): Promise<Product> {
+    const product = await this.productModel
+      .findByIdAndUpdate(id, { status }, { new: true })
+      .lean({ virtuals: true })
+      .exec();
+
+    if (!product) {
+      throw new NotFoundException(`Product ${id} not found`);
+    }
+
+    if (!this.useVariantCollection) {
+      return this.mapProduct(product);
+    }
+
+    const variants = await this.variantCollectionModel
+      .find({ productId: id })
+      .lean({ virtuals: true })
+      .exec();
+
+    return this.mapProduct(product, variants);
+  }
+
   private mapProduct(doc: ProductDoc, variantsOverride?: VariantDoc[] | VariantCollectionDoc[]): Product {
     const obj = typeof (doc as any).toObject === 'function' ? (doc as any).toObject({ virtuals: true }) : doc;
     const variantsSource = variantsOverride ?? obj.variants ?? [];
@@ -316,10 +358,12 @@ export class AppService {
       name: obj.name,
       description: obj.description,
       categoryId: obj.categoryId,
+      vendorId: obj.vendorId,
       basePrice: obj.basePrice,
       attributes: obj.attributes ?? [],
       options: obj.options ?? [],
       variants: variantsSource.map((variant: VariantEntity | Variant) => this.mapVariant(variant)),
+      status: obj.status,
     };
   }
 

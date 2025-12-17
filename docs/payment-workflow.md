@@ -47,3 +47,6 @@ This file explains the end-to-end flow from checkout to a completed payment, the
 3) Complete payment via provider UI/SDK.
 4) Poll `GET /orders/{orderId}/payments` until `status = succeeded`.
 
+
+
+

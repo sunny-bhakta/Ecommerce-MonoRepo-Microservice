@@ -16,9 +16,9 @@ export class OrderController {
     return this.appService.createOrder(dto);
   }
 
-  @Get('orders/:userId')
-  list(@Query('userId') userId?: string) {
-    return this.appService.listOrders(userId);
+  @Get('orders')
+  list(@Query('userId') userId?: string, @Query('vendorId') vendorId?: string) {
+    return this.appService.listOrders(userId, vendorId);
   }
 
   @Get('orders/:id')

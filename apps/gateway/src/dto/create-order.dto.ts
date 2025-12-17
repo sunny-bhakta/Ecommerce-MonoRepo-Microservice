@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsNumber,
+  IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
@@ -12,6 +13,10 @@ import {
 export class CreateOrderItemDto {
   @IsString()
   productId!: string;
+
+  @IsString()
+  @IsOptional()
+  vendorId?: string;
 
   @IsString()
   @IsOptional()
@@ -30,6 +35,11 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   userId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  shippingAddress!: string;
 
   @IsString()
   currency!: string;

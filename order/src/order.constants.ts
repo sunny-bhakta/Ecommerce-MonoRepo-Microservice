@@ -1,2 +1,0 @@
-export const ORDER_EVENTS_CLIENT = 'ORDER_EVENTS';
-

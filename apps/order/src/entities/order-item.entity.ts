@@ -13,6 +13,9 @@ export class OrderItemEntity {
   @Column({ type: 'text', nullable: true })
   sku?: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  vendorId?: string | null;
+
   @Column({ type: 'integer' })
   quantity!: number;
 

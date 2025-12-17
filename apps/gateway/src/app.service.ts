@@ -34,6 +34,7 @@ import { SendNotificationDto } from './dto/send-notification.dto';
 import { WebpushRegistrationDto } from './dto/webpush-registration.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { AuthLoginDto, RegisterVendorDto } from './dto/auth.dto';
 
 type DownstreamService =
   | 'order'
@@ -115,9 +116,11 @@ interface CatalogProduct {
   name: string;
   description?: string;
   categoryId: string;
+  vendorId?: string;
   basePrice: number;
   attributes: { key: string; value: string }[];
   variants: CatalogVariant[];
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 interface InventoryWarehouse {
@@ -246,6 +249,7 @@ export class AppService {
       currency: dto.currency,
       totalAmount,
       notes: dto.notes,
+      shippingAddress: dto.shippingAddress,
       items: dto.items,
     };
 
@@ -277,11 +281,20 @@ export class AppService {
   }
 
   async createOrder(dto: CreateOrderDto, user: AuthenticatedUser) {
+    const isAdmin = user.roles?.includes('admin');
+    const isVendor = user.roles?.includes('vendor');
     const totalAmount = dto.totalAmount ?? this.calculateTotal(dto.items);
+
+    const normalizedItems = dto.items.map((item) =>
+      isVendor && !isAdmin ? { ...item, vendorId: user.id } : item,
+    );
+
     const payload = {
       ...dto,
       totalAmount,
       userId: dto.userId ?? user.id,
+      shippingAddress: dto.shippingAddress,
+      items: normalizedItems,
     }; 
 
     return this.postToService<OrderResponse>(
@@ -291,12 +304,22 @@ export class AppService {
     );
   }
 
-  async listOrders(requestingUser: AuthenticatedUser, userId?: string) {
-    const resolvedUserId = requestingUser.roles?.includes('admin') && userId ? userId : requestingUser.id;
+  async listOrders(requestingUser: AuthenticatedUser, userId?: string, vendorId?: string) {
+    const isAdmin = requestingUser.roles?.includes('admin');
+    const isVendor = requestingUser.roles?.includes('vendor');
+    const resolvedUserId = isAdmin && userId ? userId : requestingUser.id;
+
     const params = new URLSearchParams();
     if (resolvedUserId) {
       params.append('userId', resolvedUserId);
     }
+
+    if (isVendor && !isAdmin) {
+      params.append('vendorId', requestingUser.id);
+    } else if (vendorId) {
+      params.append('vendorId', vendorId);
+    }
+
     const query = params.toString() ? `?${params.toString()}` : '';
     return this.getFromService<OrderResponse[]>(
       this.composeServiceUrl('order', `/orders${query}`),
@@ -378,6 +401,27 @@ export class AppService {
     );
   }
 
+  // Auth service proxies
+  async vendorLogin(dto: AuthLoginDto) {
+    return this.postToService(
+      this.composeServiceUrl('auth', '/login'),
+      dto,
+      'auth service',
+    );
+  }
+
+  async registerVendor(dto: RegisterVendorDto) {
+    const payload = {
+      ...dto,
+      roles: ['vendor'],
+    };
+    return this.postToService(
+      this.composeServiceUrl('auth', '/register'),
+      payload,
+      'auth service',
+    );
+  }
+
   async requestRefund(paymentId: string, dto: CreateRefundDto) {
     return this.postToService(
       this.composeServiceUrl('payment', `/${paymentId}/refund`),
@@ -407,6 +451,11 @@ export class AppService {
       this.composeServiceUrl('user', `/users${query}`),
       'user service',
     );
+  }
+
+  async getUserByEmail(email: string) {
+    const users = await this.listUsers(email);
+    return users?.[0] ?? null;
   }
 
   async getUser(id: string) {
@@ -460,17 +509,38 @@ export class AppService {
     );
   }
 
-  async createProduct(dto: CreateProductDto) {
+  async createProduct(dto: CreateProductDto, user: AuthenticatedUser) {
+    const isAdmin = user.roles?.includes('admin');
+    const isVendor = user.roles?.includes('vendor');
+    const payload: CreateProductDto = { ...dto };
+
+    if (isVendor && !isAdmin) {
+      // Vendor cannot impersonate others; force vendorId to their user id
+      payload.vendorId = user.id;
+      payload.status = 'pending';
+    } else if (!payload.status) {
+      payload.status = 'approved';
+    }
+
     return this.postToService<CatalogProduct>(
       this.composeServiceUrl('catalog', '/products'),
-      dto,
+      payload,
       'catalog service',
     );
   }
 
-  async listProducts() {
+  async listProducts(vendorId?: string, status?: 'pending' | 'approved' | 'rejected') {
+    const params = new URLSearchParams();
+    const shouldForceApprovedOnly = !vendorId;
+    if (vendorId) params.append('vendorId', vendorId);
+    if (status) {
+      params.append('status', status);
+    } else if (shouldForceApprovedOnly) {
+      params.append('status', 'approved');
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
     return this.getFromService<CatalogProduct[]>(
-      this.composeServiceUrl('catalog', '/products'),
+      this.composeServiceUrl('catalog', `/products${query}`),
       'catalog service',
     );
   }
@@ -482,7 +552,20 @@ export class AppService {
     );
   }
 
-  async addVariant(productId: string, dto: CreateVariantDto) {
+  async addVariant(productId: string, dto: CreateVariantDto, user: AuthenticatedUser) {
+    const isAdmin = user.roles?.includes('admin');
+    const isVendor = user.roles?.includes('vendor');
+
+    if (isVendor && !isAdmin) {
+      const product = await this.getProduct(productId);
+      if (product.vendorId && product.vendorId !== user.id) {
+        throw new BadGatewayException('Cannot modify another vendor product');
+      }
+      if (product.status && product.status !== 'approved') {
+        throw new BadGatewayException('Product is not approved; cannot add variants yet');
+      }
+    }
+
     return this.postToService<CatalogVariant>(
       this.composeServiceUrl('catalog', `/products/${productId}/variants`),
       dto,
@@ -493,6 +576,14 @@ export class AppService {
   async listVariants(productId: string) {
     return this.getFromService<CatalogVariant[]>(
       this.composeServiceUrl('catalog', `/products/${productId}/variants`),
+      'catalog service',
+    );
+  }
+
+  async updateProductStatus(productId: string, status: 'pending' | 'approved' | 'rejected') {
+    return this.patchToService<CatalogProduct>(
+      this.composeServiceUrl('catalog', `/products/${productId}/status`),
+      { status },
       'catalog service',
     );
   }

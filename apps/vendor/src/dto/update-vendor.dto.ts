@@ -1,4 +1,5 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
+import { KycStatus } from '../entities/vendor.entity';
 
 export class UpdateVendorDto {
   @IsOptional()
@@ -23,6 +24,7 @@ export class UpdateVendorDto {
 
   @IsOptional()
   @IsString()
-  kycStatus?: 'pending' | 'verified' | 'rejected';
+  @IsIn(Object.values(KycStatus))
+  kycStatus?: KycStatus;
 }
 

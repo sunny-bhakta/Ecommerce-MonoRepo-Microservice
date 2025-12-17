@@ -24,6 +24,7 @@ import {
 } from './payment.constants';
 import { RazorpayProvider } from './providers/razorpay.provider';
 import { StripeProvider } from './providers/stripe.provider';
+import { HttpModule } from '@nestjs/axios';
 
 function ensureDirectoryExists(filePath: string): void {
   const dir = dirname(filePath);
@@ -60,7 +61,8 @@ function createRedisConnectionOptions(redisUrl: string) {
         return {
           type: 'sqlite',
           database: dbPath,
-          entities: [PaymentEntity, PaymentRefundEntity],
+          // Register all payment entities so repositories can be resolved.
+          entities: [PaymentEntity, PaymentEventLogEntity, PaymentRefundEntity],
           synchronize: true,
         };
       },
@@ -82,6 +84,11 @@ function createRedisConnectionOptions(redisUrl: string) {
         }),
       },
     ]),
+    HttpModule.register({
+      // timeout: 5000,
+      timeout: 900000,
+      maxRedirects: 0,
+    }),
   ],
   controllers: [PaymentController, PaymentEventsController, PaymentWebhookController],
   providers: [

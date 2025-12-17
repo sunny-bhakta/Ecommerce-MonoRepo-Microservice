@@ -11,10 +11,10 @@ export class PaymentEventLogEntity {
   @Column({ type: 'text' })
   eventType!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentId?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   orderId?: string | null;
 
   @Column({ type: 'text' })

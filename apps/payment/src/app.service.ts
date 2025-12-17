@@ -1,4 +1,13 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
@@ -7,6 +16,7 @@ import { lastValueFrom } from 'rxjs';
 import Stripe from 'stripe';
 
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { HttpService } from '@nestjs/axios';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { PaymentEntity, PaymentProvider, PaymentStatus } from './entities/payment.entity';
 import { PaymentEventLogEntity } from './entities/payment-event-log.entity';
@@ -33,7 +43,11 @@ interface PaymentRetryJobData {
 
 @Injectable()
 export class AppService {
+  private readonly logger = new Logger(AppService.name);
+
   constructor(
+    private readonly config: ConfigService,
+    private readonly http: HttpService,
     @InjectRepository(PaymentEntity)
     private readonly paymentRepository: Repository<PaymentEntity>,
     @InjectRepository(PaymentEventLogEntity)
@@ -48,7 +62,11 @@ export class AppService {
     private readonly paymentDlqQueue: Queue,
     private readonly razorpayProvider: RazorpayProvider,
     private readonly stripeProvider: StripeProvider,
-  ) {}
+  ) {
+    this.paymentRetryQueue.on('error', (err) => {
+      this.logger.error('Payment retry queue connection error', err instanceof Error ? err.stack : undefined);
+    });
+  }
 
   async health() {
     const count = await this.paymentRepository.count();
@@ -56,14 +74,45 @@ export class AppService {
   }
 
   async create(dto: CreatePaymentDto): Promise<PaymentEntity> {
+    await this.assertOrderExists(dto.orderId, dto.userId);
+    const existing = await this.paymentRepository.findOne({ where: { orderId: dto.orderId } });
+    if (existing) {
+      if (existing.userId !== dto.userId) {
+        throw new ConflictException('Payment already exists for this order');
+      }
+      this.logger.debug('Payment already exists for order; returning existing', { orderId: dto.orderId });
+      return existing;
+    }
+
+    const provider = dto.provider ?? this.getDefaultProvider();
+    this.logger.log(`Creating payment`, { provider, orderId: dto.orderId, userId: dto.userId });
     const payment = this.paymentRepository.create({
       ...dto,
       status: PaymentStatus.PROCESSING,
+      provider,
       metadata: { initiatedVia: 'http', provider: dto.provider },
     });
-    const saved = await this.paymentRepository.save(payment);
-    await this.enqueuePaymentProcessing(saved.id);
-    return this.paymentRepository.findOneByOrFail({ id: saved.id });
+
+    try {
+      const saved = await this.paymentRepository.save(payment);
+      await this.enqueuePaymentProcessing(saved.id);
+      this.logger.log(`Payment created and enqueued`, { paymentId: saved.id });
+      return this.paymentRepository.findOneByOrFail({ id: saved.id });
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        const duplicate = await this.paymentRepository.findOne({ where: { orderId: dto.orderId } });
+        if (duplicate) {
+          if (duplicate.userId !== dto.userId) {
+            throw new ConflictException('Payment already exists for this order');
+          }
+          this.logger.debug('Payment already exists for order after concurrent create; returning existing', {
+            orderId: dto.orderId,
+          });
+          return duplicate;
+        }
+      }
+      throw error;
+    }
   }
 
   async list(userId?: string, orderId?: string): Promise<PaymentEntity[]> {
@@ -89,8 +138,10 @@ export class AppService {
   }
 
   async handleOrderCreated(payload: OrderCreatedEventPayload): Promise<void> {
+    this.logger.log('Received order.created event', { orderId: payload.orderId, userId: payload.userId });
     const existing = await this.paymentRepository.findOne({ where: { orderId: payload.orderId } });
     if (existing) {
+      this.logger.debug('Payment already exists for order; skipping creation', { orderId: payload.orderId });
       return;
     }
     const payment = this.paymentRepository.create({
@@ -99,10 +150,56 @@ export class AppService {
       amount: payload.total,
       currency: payload.currency,
       status: PaymentStatus.PROCESSING,
+      provider: this.getDefaultProvider(),
       metadata: { source: 'order.event', status: payload.status },
     });
-    const saved = await this.paymentRepository.save(payment);
-    await this.enqueuePaymentProcessing(saved.id);
+    try {
+      const saved = await this.paymentRepository.save(payment);
+      this.logger.log('Payment created from order event; enqueueing processing', { paymentId: saved.id });
+      await this.enqueuePaymentProcessing(saved.id);
+      this.logger.debug('Payment enqueued from order event', { paymentId: saved.id });
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        this.logger.debug('Payment already exists for order; event create skipped after unique constraint', {
+          orderId: payload.orderId,
+        });
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private getDefaultProvider(): PaymentProvider {
+    return this.config.get<PaymentProvider>('PAYMENT_PROVIDER') ?? PaymentProvider.RAZORPAY;
+  }
+
+  private async assertOrderExists(orderId: string, userId: string): Promise<void> {
+    const orderServiceUrl = this.config.get<string>('ORDER_SERVICE_URL') ?? 'http://localhost:3060';
+    try {
+      const response = await this.http.axiosRef.get(`${orderServiceUrl}/order/orders/${orderId}`, {
+        headers: { 'x-user-id': userId },
+        validateStatus: (status) => status < 500,
+      });
+
+      if (response.status === 404) {
+        throw new NotFoundException(`Order ${orderId} not found`);
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw new UnauthorizedException(`Not allowed to use order ${orderId}`);
+      }
+      if (response.status >= 300) {
+        throw new BadRequestException(`Order lookup failed: ${response.status}`);
+      }
+    } catch (error) {
+      this.logger.error('Order verification failed', error instanceof Error ? error.stack : undefined, {
+        orderId,
+        userId,
+      });
+      if (error instanceof NotFoundException || error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Unable to verify order for payment');
+    }
   }
 
   async processPaymentJob(jobData: PaymentRetryJobData): Promise<void> {
@@ -110,14 +207,28 @@ export class AppService {
   }
 
   private async enqueuePaymentProcessing(paymentId: string, attempt = 1, delayMs = 0): Promise<void> {
-    await this.paymentRetryQueue.add(
-      'process-payment',
-      { paymentId, attempt },
-      {
-        delay: delayMs,
-        removeOnComplete: true,
-      },
-    );
+    try {
+      // Ensure Redis connection is ready; otherwise socket-level errors can
+      // terminate before reaching this try/catch.
+      await this.paymentRetryQueue.waitUntilReady();
+      await this.paymentRetryQueue.add(
+        'process-payment',
+        { paymentId, attempt },
+        {
+          delay: delayMs,
+          removeOnComplete: true,
+        },
+      );
+      this.logger.debug('Enqueued payment processing', { paymentId, attempt, delayMs });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to enqueue payment processing job';
+      this.logger.error(`Enqueue payment processing failed: ${message}`, error instanceof Error ? error.stack : undefined, {
+        paymentId,
+        attempt,
+        delayMs,
+      });
+      throw new Error(`Enqueue payment processing failed for payment ${paymentId}: ${message}`);
+    }
   }
 
   private calculateRetryDelay(attempt: number): number {
@@ -127,17 +238,21 @@ export class AppService {
   }
 
   private async processPayment(paymentId: string, attempt: number): Promise<void> {
+    this.logger.debug('Processing payment start', { paymentId, attempt });
     const payment = await this.paymentRepository.findOne({ where: { id: paymentId } });
     if (!payment) {
+      this.logger.warn('Payment not found when processing', { paymentId, attempt });
       return;
     }
 
     if (payment.provider === PaymentProvider.RAZORPAY) {
+      this.logger.debug('Routing payment to Razorpay', { paymentId, attempt });
       await this.processRazorpayPayment(payment, attempt);
       return;
     }
 
     if (payment.provider === PaymentProvider.STRIPE) {
+      this.logger.debug('Routing payment to Stripe', { paymentId, attempt });
       await this.processStripePayment(payment, attempt);
       return;
     }
@@ -173,6 +288,7 @@ export class AppService {
 
   private async processRazorpayPayment(payment: PaymentEntity, attempt: number): Promise<void> {
     try {
+      this.logger.debug('Creating Razorpay order', { paymentId: payment.id, attempt });
       const result = await this.chargeViaRazorpay(payment);
       await this.paymentRepository.update(
         { id: payment.id },
@@ -189,8 +305,13 @@ export class AppService {
         },
         updated,
       );
+      this.logger.log('Razorpay order created', { paymentId: payment.id, providerOrderId: result.id });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : 'Razorpay order creation failed';
+      this.logger.error('Razorpay order creation failed', error instanceof Error ? error.stack : undefined, {
+        paymentId: payment.id,
+        attempt,
+      });
       await this.recordProviderEvent(
         'razorpay',
         'order.create.failed',
@@ -207,6 +328,7 @@ export class AppService {
 
   private async processStripePayment(payment: PaymentEntity, attempt: number): Promise<void> {
     try {
+      this.logger.debug('Creating Stripe payment intent', { paymentId: payment.id, attempt });
       const result = await this.chargeViaStripe(payment);
       const stripeClientSecret = result.clientSecret ?? undefined;
       const stripeMetadata: Record<string, unknown> | null = {
@@ -233,8 +355,14 @@ export class AppService {
         },
         updated,
       );
+      this.logger.log('Stripe payment intent created', { paymentId: payment.id, providerPaymentId: result.id });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : 'Stripe payment intent creation failed';
+      this.logger.error('Stripe payment intent creation failed', error instanceof Error ? error.stack : undefined, {
+        paymentId: payment.id,
+        attempt,
+      });
+      try {
       await this.recordProviderEvent(
         'stripe',
         'payment_intent.create.failed',
@@ -245,7 +373,13 @@ export class AppService {
         },
         payment,
       );
-      await this.handlePaymentFailure(payment, failureReason, attempt);
+        await this.handlePaymentFailure(payment, failureReason, attempt);
+      } catch (error) {
+        this.logger.error('Stripe failure handling error', error instanceof Error ? error.stack : undefined, {
+          paymentId: payment.id,
+          attempt,
+        });
+      }
     }
   }
 
@@ -255,6 +389,7 @@ export class AppService {
         { id: payment.id },
         { status: PaymentStatus.FAILED, failureReason },
       );
+      this.logger.warn('Payment marked failed after max attempts', { paymentId: payment.id, attempt, failureReason });
       await this.paymentDlqQueue.add(
         'payment-order-failed',
         {
@@ -270,11 +405,13 @@ export class AppService {
       }
     } else {
       const delayMs = this.calculateRetryDelay(attempt);
+      this.logger.debug('Re-enqueueing payment after failure', { paymentId: payment.id, attempt, delayMs, failureReason });
       await this.enqueuePaymentProcessing(payment.id, attempt + 1, delayMs);
     }
   }
 
   private async emitPaymentCompletedEvent(payment: PaymentEntity): Promise<void> {
+    this.logger.log('Emitting payment.completed event', { paymentId: payment.id, orderId: payment.orderId });
     const event: PaymentCompletedEventPayload = {
       orderId: payment.orderId,
       paymentId: payment.id,
@@ -309,6 +446,7 @@ export class AppService {
   }
 
   async requestRefund(paymentId: string, dto: CreateRefundDto): Promise<PaymentRefundEntity> {
+    this.logger.log('Refund requested', { paymentId, amount: dto.amount, reason: dto.reason });
     const payment = await this.paymentRepository.findOne({ where: { id: paymentId } });
     if (!payment) {
       throw new NotFoundException(`Payment ${paymentId} not found`);
@@ -362,6 +500,12 @@ export class AppService {
       metadata: { providerStatus },
     });
 
+    this.logger.log('Refund recorded', {
+      paymentId: payment.id,
+      refundAmount: amount,
+      gatewayRefundId: providerRefundId,
+      providerStatus,
+    });
     return this.paymentRefundRepository.save(refund);
   }
 
@@ -392,10 +536,20 @@ export class AppService {
     return RefundStatus.PROCESSING;
   }
 
+  private isUniqueViolation(error: unknown): boolean {
+    const code = (error as any)?.code;
+    if (code === '23505' || code === 'SQLITE_CONSTRAINT' || code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return true;
+    }
+    const message = (error as any)?.message as string | undefined;
+    return typeof message === 'string' && message.toLowerCase().includes('unique constraint');
+  }
+
   async handleRazorpayWebhook(rawBody: string, signature: string | undefined, payload: any) {
     if (!signature) {
       throw new BadRequestException('Missing Razorpay signature header');
     }
+    this.logger.log('Received Razorpay webhook', { signaturePresent: !!signature });
     const isValid = this.razorpayProvider.validateWebhookSignature(rawBody, signature);
     if (!isValid) {
       throw new BadRequestException('Invalid Razorpay signature');
@@ -422,6 +576,7 @@ export class AppService {
     await this.recordProviderEvent('razorpay', eventType ?? 'unknown', payload, payment ?? undefined);
 
     if (!payment) {
+      this.logger.warn('Razorpay webhook could not find payment', { providerOrderId });
       return;
     }
 
@@ -436,6 +591,7 @@ export class AppService {
       );
       const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
       await this.emitPaymentCompletedEvent(updated);
+      this.logger.log('Razorpay webhook marked payment succeeded', { paymentId: payment.id, providerPaymentId });
     } else if (eventType === 'payment.failed') {
       const failureReason =
         paymentEntityPayload.error_description ||
@@ -453,6 +609,7 @@ export class AppService {
       );
       const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
       await this.emitPaymentFailedEvent(updated, failureReason);
+      this.logger.warn('Razorpay webhook marked payment failed', { paymentId: payment.id, providerPaymentId, failureReason });
     }
   }
 
@@ -471,6 +628,7 @@ export class AppService {
     const eventType = event?.type ?? 'unknown';
     const paymentIntent = event?.data?.object as Stripe.PaymentIntent | undefined;
     const providerPaymentId = paymentIntent?.id;
+    this.logger.log('Received Stripe webhook', { eventType, providerPaymentId });
 
     const payment = providerPaymentId
       ? await this.paymentRepository.findOne({ where: { gatewayPaymentId: providerPaymentId } })
@@ -479,6 +637,7 @@ export class AppService {
     await this.recordProviderEvent('stripe', eventType, event.data?.object ?? {}, payment ?? undefined);
 
     if (!payment || !paymentIntent) {
+      this.logger.warn('Stripe webhook could not find payment', { providerPaymentId, eventType });
       return;
     }
 
@@ -493,6 +652,7 @@ export class AppService {
       );
       const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
       await this.emitPaymentCompletedEvent(updated);
+      this.logger.log('Stripe webhook marked payment succeeded', { paymentId: payment.id, providerPaymentId });
     } else if (eventType === 'payment_intent.payment_failed') {
       const failureReason = paymentIntent.last_payment_error?.message ?? 'Stripe payment failed';
       await this.paymentRepository.update(
@@ -505,6 +665,7 @@ export class AppService {
       );
       const updated = await this.paymentRepository.findOneByOrFail({ id: payment.id });
       await this.emitPaymentFailedEvent(updated, failureReason);
+      this.logger.warn('Stripe webhook marked payment failed', { paymentId: payment.id, providerPaymentId, failureReason });
     }
   }
 }
