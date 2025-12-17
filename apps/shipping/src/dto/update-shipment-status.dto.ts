@@ -1,8 +1,10 @@
 import { IsIn, IsOptional, IsString } from 'class-validator';
 
+import { ShipmentStatus } from '../entities/shipment.entity';
+
 export class UpdateShipmentStatusDto {
-  @IsIn(['pending', 'label_generated', 'in_transit', 'delivered', 'failed'])
-  status!: 'pending' | 'label_generated' | 'in_transit' | 'delivered' | 'failed';
+  @IsIn(Object.values(ShipmentStatus))
+  status!: ShipmentStatus;
 
   @IsOptional()
   @IsString()

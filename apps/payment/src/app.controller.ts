@@ -3,7 +3,7 @@ import { AppService } from './app.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 
-@Controller('payments')
+@Controller('payment')
 export class PaymentController {
   constructor(private readonly appService: AppService) {}
 
@@ -12,7 +12,7 @@ export class PaymentController {
     return this.appService.health();
   }
 
-  @Post()
+  @Post('payments')
   create(@Body() dto: CreatePaymentDto) {
     return this.appService.create(dto);
   }

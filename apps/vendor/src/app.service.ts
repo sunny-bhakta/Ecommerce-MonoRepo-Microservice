@@ -1,71 +1,90 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+
 import { CreateVendorDto } from './dto/create-vendor.dto';
 import { UpdateVendorDto } from './dto/update-vendor.dto';
-
-interface Vendor {
-  id: string;
-  name: string;
-  email: string;
-  companyName: string;
-  gstNumber?: string;
-  address?: string;
-  kycStatus: 'pending' | 'verified' | 'rejected';
-  createdAt: string;
-  updatedAt: string;
-}
+import { KycStatus, VendorEntity } from './entities/vendor.entity';
 
 @Injectable()
 export class AppService {
-  private vendors: Vendor[] = [];
+  constructor(
+    @InjectRepository(VendorEntity)
+    private readonly vendorRepository: Repository<VendorEntity>,
+  ) {}
 
-  health() {
+  async health() {
+    const total = await this.vendorRepository.count();
     return {
       service: 'vendor',
       status: 'ok',
-      vendors: this.vendors.length,
+      vendors: total,
       timestamp: new Date().toISOString(),
     };
   }
 
-  createVendor(dto: CreateVendorDto): Vendor {
-    const now = new Date().toISOString();
-    const vendor: Vendor = {
-      id: randomUUID(),
+  async createVendor(dto: CreateVendorDto): Promise<VendorEntity> {
+    const email = this.normalizeEmail(dto.email);
+    const existing = await this.vendorRepository.findOne({ where: { email } });
+    if (existing) {
+      throw new ConflictException('Vendor email already exists');
+    }
+
+    const vendor = this.vendorRepository.create({
       name: dto.name,
-      email: dto.email.toLowerCase(),
+      email,
       companyName: dto.companyName,
       gstNumber: dto.gstNumber,
       address: dto.address,
-      kycStatus: 'pending',
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.vendors.push(vendor);
-    return vendor;
+      kycStatus: KycStatus.PENDING,
+    });
+    return this.vendorRepository.save(vendor);
   }
 
-  listVendors(): Vendor[] {
-    return this.vendors;
+  async listVendors(): Promise<VendorEntity[]> {
+    return this.vendorRepository.find({
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  getVendor(id: string): Vendor {
-    const vendor = this.vendors.find((v) => v.id === id);
+  async getVendor(id: string): Promise<VendorEntity> {
+    const vendor = await this.vendorRepository.findOne({ where: { id } });
     if (!vendor) {
       throw new NotFoundException('Vendor not found');
     }
     return vendor;
   }
 
-  updateVendor(id: string, dto: UpdateVendorDto): Vendor {
-    const vendor = this.getVendor(id);
+  async updateVendor(id: string, dto: UpdateVendorDto): Promise<VendorEntity> {
+    const vendor = await this.getVendor(id);
+
+    if (dto.email) {
+      const normalizedEmail = this.normalizeEmail(dto.email);
+      if (normalizedEmail !== vendor.email) {
+        const existing = await this.vendorRepository.findOne({
+          where: { email: normalizedEmail },
+        });
+        if (existing && existing.id !== id) {
+          throw new ConflictException('Vendor email already exists');
+        }
+        vendor.email = normalizedEmail;
+      }
+    }
+
     if (dto.name !== undefined) vendor.name = dto.name;
-    if (dto.email !== undefined) vendor.email = dto.email.toLowerCase();
     if (dto.companyName !== undefined) vendor.companyName = dto.companyName;
     if (dto.gstNumber !== undefined) vendor.gstNumber = dto.gstNumber;
     if (dto.address !== undefined) vendor.address = dto.address;
-    if (dto.kycStatus !== undefined) vendor.kycStatus = dto.kycStatus;
-    vendor.updatedAt = new Date().toISOString();
-    return vendor;
+    if (dto.kycStatus !== undefined) vendor.kycStatus = dto.kycStatus as KycStatus;
+
+    return this.vendorRepository.save(vendor);
+  }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
   }
 }

@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
@@ -27,7 +29,12 @@ export class AppService {
     @InjectRepository(OrderItemEntity)
     private readonly orderItemRepository: Repository<OrderItemEntity>,
     @Inject(ORDER_EVENTS_CLIENT) private readonly orderEventClient: ClientProxy,
+    private readonly http: HttpService,
+    private readonly config: ConfigService,
   ) {}
+
+  private readonly shippingServiceUrl =
+    this.config.get<string>('SHIPPING_SERVICE_URL') ?? 'http://localhost:3080';
 
   async health() {
     const count = await this.orderRepository.count();
@@ -38,6 +45,7 @@ export class AppService {
     try {
       const order = this.orderRepository.create({
         userId: dto.userId,
+        shippingAddress: dto.shippingAddress,
         currency: dto.currency,
         totalAmount: dto.totalAmount,
         status: dto.status ?? OrderStatus.PENDING,
@@ -45,6 +53,7 @@ export class AppService {
         items: dto.items.map((item) =>
           this.orderItemRepository.create({
             productId: item.productId,
+            vendorId: item.vendorId,
             sku: item.sku,
             quantity: item.quantity,
             price: item.price,
@@ -53,6 +62,7 @@ export class AppService {
       });
 
       const saved = await this.orderRepository.save(order);
+      console.log("#0000081111663", saved);
       logDomainEvent(this.logger, {
         action: 'create',
         entity: 'order',
@@ -61,6 +71,7 @@ export class AppService {
         detail: { userId: saved.userId, total: saved.totalAmount, currency: saved.currency },
       });
       await this.emitOrderCreatedEvent(saved);
+      console.log("#0000081111664 => ");
       return saved;
     } catch (error) {
       logDomainEvent(this.logger, {
@@ -73,11 +84,21 @@ export class AppService {
     }
   }
 
-  async listOrders(userId?: string): Promise<OrderEntity[]> {
+  async listOrders(userId?: string, vendorId?: string): Promise<OrderEntity[]> {
+    const qb = this.orderRepository
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.items', 'item')
+      .orderBy('order.createdAt', 'DESC');
+
     if (userId) {
-      return this.orderRepository.find({ where: { userId }, order: { createdAt: 'DESC' } });
+      qb.andWhere('order.userId = :userId', { userId });
     }
-    return this.orderRepository.find({ order: { createdAt: 'DESC' } });
+
+    if (vendorId) {
+      qb.andWhere('item.vendorId = :vendorId', { vendorId });
+    }
+
+    return qb.getMany();
   }
 
   async getOrder(id: string): Promise<OrderEntity> {
@@ -89,10 +110,15 @@ export class AppService {
   }
 
   async markOrderPaid(payload: PaymentCompletedEventPayload): Promise<void> {
-    await this.orderRepository.update(
-      { id: payload.orderId },
-      { status: OrderStatus.PAID, paymentId: payload.paymentId },
-    );
+    const order = await this.orderRepository.findOne({ where: { id: payload.orderId } });
+    if (!order) {
+      throw new NotFoundException(`Order ${payload.orderId} not found`);
+    }
+
+    order.status = OrderStatus.PAID;
+    order.paymentId = payload.paymentId;
+    await this.orderRepository.save(order);
+
     logDomainEvent(this.logger, {
       action: 'payment',
       entity: 'order',
@@ -100,6 +126,8 @@ export class AppService {
       status: 'success',
       detail: { paymentId: payload.paymentId },
     });
+
+    await this.createShipmentIfNeeded(order);
   }
 
   async markOrderFailed(payload: PaymentFailedEventPayload): Promise<void> {
@@ -113,7 +141,47 @@ export class AppService {
     });
   }
 
+  private async createShipmentIfNeeded(order: OrderEntity): Promise<void> {
+    if (!order.shippingAddress) {
+      this.logger.warn(`No shipping address on order ${order.id}; skipping shipment creation`);
+      return;
+    }
+
+    try {
+      const existing = await lastValueFrom(
+        this.http.get(`${this.shippingServiceUrl}/shipments`, {
+          params: { orderId: order.id },
+        }),
+      );
+      if (Array.isArray(existing.data) && existing.data.length > 0) {
+        this.logger.log(`Shipment already exists for order ${order.id}; skipping creation`);
+        return;
+      }
+    } catch (error) {
+      const err = error as Error;
+      this.logger.warn(
+        `Unable to verify existing shipments for order ${order.id}: ${err.message}`,
+        err.stack,
+      );
+    }
+
+    try {
+      await lastValueFrom(
+        this.http.post(`${this.shippingServiceUrl}/shipments`, {
+          orderId: order.id,
+          carrier: 'standard',
+          destination: order.shippingAddress,
+        }),
+      );
+      this.logger.log(`Shipment created for order ${order.id}`);
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`Failed to create shipment for order ${order.id}: ${err.message}`, err.stack);
+    }
+  }
+
   private async emitOrderCreatedEvent(order: OrderEntity): Promise<void> {
+    console.log("#00000811119 emitOrderCreatedEvent emitOrderCreatedEvent=> ");
     const event: OrderCreatedEvent = {
       name: OrderEventNames.ORDER_CREATED,
       occurredAt: new Date().toISOString(),
@@ -135,7 +203,9 @@ export class AppService {
     // 'event.name' specifies the type of the event, and 'event' contains all data about the created order.
     // The 'emit' function returns an Observable, so 'lastValueFrom' is used to await its completion.
     try {
-      await lastValueFrom(this.orderEventClient.emit(event.name, event));
+      console.log("#000008111110aa => ");
+      let c = await lastValueFrom(this.orderEventClient.emit(event.name, event));
+      console.log("#000008111111bbc => ", c);
       logDomainEvent(this.logger, {
         action: 'emit',
         entity: 'order.created',
@@ -144,14 +214,16 @@ export class AppService {
         detail: { userId: order.userId, total: order.totalAmount },
       });
     } catch (error) {
+      const err = error as Error;
+      this.logger.error(`Failed to emit ORDER_CREATED for order ${order.id}: ${err?.message}`, err?.stack);
       logDomainEvent(this.logger, {
         action: 'emit',
         entity: 'order.created',
         entityId: order.id,
         status: 'failure',
-        detail: { error: (error as Error)?.message },
+        detail: { error: err?.message },
       });
-      throw error;
+      throw new Error(`Order ${order.id} created but event publish failed: ${err?.message}`);
     }
   }
 }

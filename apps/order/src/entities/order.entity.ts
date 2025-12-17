@@ -26,6 +26,9 @@ export class OrderEntity {
   @Column()
   userId!: string;
 
+  @Column({ type: 'text' })
+  shippingAddress!: string;
+
   @Column({ type: 'text', nullable: true })
   notes?: string | null;
 

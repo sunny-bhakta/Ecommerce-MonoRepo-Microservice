@@ -20,6 +20,10 @@ export class OrderItemDto {
 
   @IsString()
   @IsOptional()
+  vendorId?: string;
+
+  @IsString()
+  @IsOptional()
   sku?: string;
 
   @IsNumber()
@@ -35,6 +39,11 @@ export class CreateOrderDto {
   @IsString()
   @IsNotEmpty()
   userId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  shippingAddress!: string;
 
   @IsString()
   @IsNotEmpty()

@@ -12,6 +12,7 @@ import { OrderEntity } from './entities/order.entity';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEventsController } from './order.events.controller';
 import { ORDER_EVENTS_CLIENT } from './order.constants';
+import { HttpModule } from '@nestjs/axios';
 
 function ensureDirectoryExists(filePath: string): void {
   const dir = dirname(filePath);
@@ -57,6 +58,11 @@ function ensureDirectoryExists(filePath: string): void {
         }),
       },
     ]),
+    HttpModule.register({
+      // timeout: 5000,
+      timeout: 900000,
+      maxRedirects: 0,
+    }),
   ],
   controllers: [OrderController, OrderEventsController],
   providers: [AppService],

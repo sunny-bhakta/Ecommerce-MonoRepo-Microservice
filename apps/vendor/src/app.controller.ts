@@ -8,27 +8,27 @@ export class VendorController {
   constructor(private readonly appService: AppService) {}
 
   @Get('health')
-  health() {
+  async health() {
     return this.appService.health();
   }
 
   @Post('vendors')
-  createVendor(@Body() dto: CreateVendorDto) {
+  async createVendor(@Body() dto: CreateVendorDto) {
     return this.appService.createVendor(dto);
   }
 
   @Get('vendors')
-  listVendors() {
+  async listVendors() {
     return this.appService.listVendors();
   }
 
   @Get('vendors/:id')
-  getVendor(@Param('id') id: string) {
+  async getVendor(@Param('id') id: string) {
     return this.appService.getVendor(id);
   }
 
   @Patch('vendors/:id')
-  updateVendor(@Param('id') id: string, @Body() dto: UpdateVendorDto) {
+  async updateVendor(@Param('id') id: string, @Body() dto: UpdateVendorDto) {
     return this.appService.updateVendor(id, dto);
   }
 }
