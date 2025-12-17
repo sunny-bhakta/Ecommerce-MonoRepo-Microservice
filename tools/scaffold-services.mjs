@@ -23,19 +23,19 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
 const services = [
-  { name: 'gateway', port: 3000 },
-  { name: 'auth', port: 3010 },
-  { name: 'user', port: 3020 },
-  { name: 'vendor', port: 3030 },
-  { name: 'catalog', port: 3040 },
-  { name: 'inventory', port: 3050 },
-  { name: 'order', port: 3060 },
-  { name: 'payment', port: 3070 },
-  { name: 'shipping', port: 3080 },
-  { name: 'review', port: 3090 },
-  { name: 'analytics', port: 3100 },
-  { name: 'admin', port: 3110 },
-  { name: 'search', port: 3120 },
+  { name: 'gateway', port: 3000 },      // ✅ done
+  { name: 'auth', port: 3010 },         // ✅ done
+  { name: 'user', port: 3020 },         // ✅ done
+  { name: 'vendor', port: 3030 },       // ⬜ inprogress
+  { name: 'catalog', port: 3040 },      // ✅ done
+  { name: 'inventory', port: 3050 },    // ✅ done
+  { name: 'order', port: 3060 },        // ✅ done
+  { name: 'payment', port: 3070 },      // ✅ done
+  { name: 'shipping', port: 3080 },     // ✅ done
+  { name: 'review', port: 3090 },       // ⬜ not done
+  { name: 'analytics', port: 3100 },    // ⬜ not done
+  { name: 'admin', port: 3110 },        // ⬜ not done
+  { name: 'search', port: 3120 },       // ⬜ not done
 ];
 
 const rootDir = process.cwd();
