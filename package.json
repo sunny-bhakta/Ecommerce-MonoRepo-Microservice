@@ -39,7 +39,7 @@
     "lint:frontend": "npm --prefix apps/frontend run lint",
     "typecheck:frontend": "npm --prefix apps/frontend run typecheck",
     "start:dev:core1": "npm-run-all --parallel start:dev:gateway start:dev:auth start:dev:user start:dev:vendor start:dev:catalog start:dev:inventory start:dev:order start:dev:payment start:dev:shipping start:dev:review start:dev:analytics start:dev:admin start:dev:search",
-    "start:pro:core": "npm-run-all --parallel start:pro:gateway start:pro:auth start:pro:catalog start:pro:order start:pro:payment start:pro:vendor start:pro:inventory start:pro:shipping",
+    "start:pro:core": "npm-run-all --parallel start:pro:gateway start:pro:auth start:pro:admin",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
