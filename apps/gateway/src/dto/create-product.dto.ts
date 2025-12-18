@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import { IsArray, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { AttributeDto } from './attribute.dto';
 import { CreateVariantDto } from './create-variant.dto';
+import { OptionDefinitionDto } from './option-definition.dto';
 
 export class CreateProductDto {
   @IsString()
@@ -24,6 +25,12 @@ export class CreateProductDto {
   @ValidateNested({ each: true })
   @Type(() => AttributeDto)
   attributes?: AttributeDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OptionDefinitionDto)
+  options?: OptionDefinitionDto[];
 
   @IsOptional()
   @IsString()

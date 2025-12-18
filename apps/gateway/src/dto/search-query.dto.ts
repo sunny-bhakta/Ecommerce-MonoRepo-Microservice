@@ -1,4 +1,5 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
+import { SearchDocumentType } from './index-document.dto';
 
 export class SearchQueryDto {
   @IsString()
@@ -8,5 +9,9 @@ export class SearchQueryDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @IsOptional()
+  @IsIn(['product', 'category', 'general'])
+  type?: SearchDocumentType;
 }
 

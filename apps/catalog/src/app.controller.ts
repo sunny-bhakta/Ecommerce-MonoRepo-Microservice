@@ -4,6 +4,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Controller('catalog')
 export class CatalogController {
@@ -42,6 +43,14 @@ export class CatalogController {
     return this.appService.getProduct(id);
   }
 
+  @Patch('products/:productId')
+  updateProduct(
+    @Param('productId') productId: string,
+    @Body() dto: UpdateProductDto,
+  ): Promise<Product> {
+    return this.appService.updateProduct(productId, dto);
+  }
+
   @Post('products/:productId/variants')
   addVariant(
     @Param('productId') productId: string,
@@ -62,4 +71,6 @@ export class CatalogController {
   ): Promise<Product> {
     return this.appService.updateProductStatus(productId, dto.status);
   }
+
+
 }

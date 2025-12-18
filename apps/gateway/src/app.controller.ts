@@ -32,6 +32,7 @@ import { CreateRefundDto } from './dto/create-refund.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { AuthLoginDto, RegisterVendorDto } from './dto/auth.dto';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Controller()
 export class GatewayController {
@@ -263,6 +264,17 @@ export class GatewayController {
 
   @UseGuards(GatewayAuthGuard, RolesGuard)
   @Roles('admin', 'vendor')
+  @Patch('catalog/products/:productId')
+  updateProduct(
+    @Param('productId') productId: string,
+    @Body() dto: UpdateProductDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.appService.updateProduct(productId, dto, user);
+  }
+
+  @UseGuards(GatewayAuthGuard, RolesGuard)
+  @Roles('admin', 'vendor')
   @Post('catalog/products/:productId/variants')
   addVariant(
     @Param('productId') productId: string,
@@ -400,6 +412,13 @@ export class GatewayController {
   @Post('search/index')
   indexDocument(@Body() dto: IndexDocumentDto): Promise<unknown> {
     return this.appService.indexSearchDocument(dto);
+  }
+
+  @UseGuards(GatewayAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('search/seed')
+  seedSearch(): Promise<unknown> {
+    return this.appService.seedSearchData();
   }
 
   @Post('search/query')

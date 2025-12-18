@@ -1,10 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { AnyBulkWriteOperation } from 'mongodb';
 import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateVariantDto } from './dto/create-variant.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { CategoryDocument, CategoryEntity } from './schemas/category.schema';
 import { OptionDefinition, ProductDocument, Product as ProductEntity, Variant as VariantEntity, VariantDocument } from './schemas/product.schema';
 import {
@@ -325,6 +327,56 @@ export class AppService {
     };
   }
 
+  async updateProduct(id: string, dto: UpdateProductDto): Promise<Product> {
+    const existing = await this.productModel.findById(id).lean({ virtuals: true }).exec();
+    if (!existing) {
+      throw new NotFoundException(`Product ${id} not found`);
+    }
+
+    const updatePayload: Record<string, unknown> = {};
+
+    if (dto.name !== undefined) {
+      updatePayload.name = dto.name;
+    }
+    if (dto.description !== undefined) {
+      updatePayload.description = dto.description;
+    }
+    if (dto.basePrice !== undefined) {
+      updatePayload.basePrice = dto.basePrice;
+    }
+    if (dto.attributes !== undefined) {
+      updatePayload.attributes = dto.attributes;
+    }
+    if (dto.categoryId !== undefined && dto.categoryId !== existing.categoryId) {
+      const categoryExists = await this.categoryModel.exists({ _id: dto.categoryId });
+      if (!categoryExists) {
+        throw new BadRequestException(`Category ${dto.categoryId} does not exist`);
+      }
+      updatePayload.categoryId = dto.categoryId;
+    }
+
+    if (dto.options !== undefined) {
+      const normalizedOptions = this.normalizeOptionDefinitions(dto.options);
+      await this.reconcileVariantsForOptions(id, normalizedOptions);
+      updatePayload.options = normalizedOptions;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return this.getProduct(id);
+    }
+
+    const updated = await this.productModel
+      .findByIdAndUpdate(id, updatePayload, { new: true })
+      .lean({ virtuals: true })
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(`Product ${id} not found`);
+    }
+
+    return this.getProduct(id);
+  }
+
   async updateProductStatus(
     id: string,
     status: 'pending' | 'approved' | 'rejected',
@@ -442,5 +494,117 @@ export class AppService {
 
   private isDuplicateKeyError(error: unknown): boolean {
     return Boolean(error && typeof error === 'object' && (error as any).code === 11000);
+  }
+
+  private async reconcileVariantsForOptions(
+    productId: string,
+    options: OptionDefinition[],
+  ): Promise<void> {
+    if (options.length === 0) {
+      return;
+    }
+
+    if (this.useVariantCollection) {
+      const variants = await this.variantCollectionModel
+        .find({ productId })
+        .select('+combinationKey')
+        .lean({ virtuals: true })
+        .exec();
+
+      if (variants.length === 0) {
+        return;
+      }
+
+      const combinationKeys = new Set<string>();
+  const updates: AnyBulkWriteOperation<VariantCollection>[] = [];
+
+      for (const variant of variants) {
+        const normalizedAttributes = this.normalizeAttributesForOptions(variant.attributes ?? [], options);
+        const combinationKey = this.buildCombinationKey(normalizedAttributes);
+        if (combinationKeys.has(combinationKey)) {
+          throw new ConflictException('Variant option combination must be unique per product');
+        }
+        combinationKeys.add(combinationKey);
+
+        const needsUpdate =
+          !this.areAttributesEqual(normalizedAttributes, variant.attributes ?? []) ||
+          combinationKey !== (variant as any).combinationKey;
+
+        if (needsUpdate) {
+          updates.push({
+            updateOne: {
+              filter: { _id: variant._id },
+              update: { attributes: normalizedAttributes, combinationKey },
+            },
+          });
+        }
+      }
+
+      if (updates.length > 0) {
+        await this.variantCollectionModel.bulkWrite(updates);
+      }
+      return;
+    }
+
+    const product = await this.productModel
+      .findById(productId, { variants: 1 })
+      .lean({ virtuals: true })
+      .exec();
+
+    if (!product || (product.variants ?? []).length === 0) {
+      return;
+    }
+
+    const combinationKeys = new Set<string>();
+    let needsUpdate = false;
+    const normalizedVariants = (product.variants ?? []).map((variant) => {
+      const normalizedAttributes = this.normalizeAttributesForOptions(variant.attributes ?? [], options);
+      const combinationKey = this.buildCombinationKey(normalizedAttributes);
+      if (combinationKeys.has(combinationKey)) {
+        throw new ConflictException('Variant option combination must be unique per product');
+      }
+      combinationKeys.add(combinationKey);
+      if (!this.areAttributesEqual(normalizedAttributes, variant.attributes ?? [])) {
+        needsUpdate = true;
+      }
+      return {
+        ...variant,
+        attributes: normalizedAttributes,
+      };
+    });
+
+    if (!needsUpdate) {
+      return;
+    }
+
+    await this.productModel.updateOne(
+      { _id: productId },
+      {
+        $set: {
+          variants: normalizedVariants.map((variant) => {
+            const variantWithIds = variant as Variant & { _id?: unknown; id?: string };
+            const resolvedId = variantWithIds._id ?? variantWithIds.id;
+            return {
+              _id: resolvedId,
+              productId: variant.productId,
+              sku: variant.sku,
+              price: variant.price,
+              stock: variant.stock,
+              attributes: variant.attributes,
+            };
+          }),
+        },
+      },
+    );
+  }
+
+  private areAttributesEqual(left: Attribute[], right: Attribute[]): boolean {
+    if (left.length !== right.length) {
+      return false;
+    }
+    return left.every((item, index) => {
+      const other = right[index];
+      return other && other.key === item.key && other.value === item.value;
+    });
   }
 }
