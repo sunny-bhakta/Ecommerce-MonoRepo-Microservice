@@ -3,7 +3,7 @@ import { AppService } from './app.service';
 import { IndexDocumentDto } from './dto/index-document.dto';
 import { SearchQueryDto } from './dto/search-query.dto';
 
-@Controller()
+@Controller('search')
 export class SearchController {
   constructor(private readonly appService: AppService) {}
 
@@ -15,6 +15,11 @@ export class SearchController {
   @Post('index')
   indexDocument(@Body() dto: IndexDocumentDto) {
     return this.appService.indexDocument(dto);
+  }
+
+  @Post('seed')
+  seed() {
+    return this.appService.seedDummyData();
   }
 
   @Post('search')

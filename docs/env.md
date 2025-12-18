@@ -41,5 +41,12 @@ Below is a list of common environment variables used by this monorepo. Set these
 - Database connection URLs (e.g., `DATABASE_URL` for Postgres/MySQL)
 - JWT/secret keys: `AUTH_JWT_SECRET`, `PAYMENT_SECRET_KEY`, etc.
 
+### Search Service
+
+| Variable       | Description                              | Default                              |
+|----------------|------------------------------------------|--------------------------------------|
+| `MONGODB_URI`  | Mongo connection string (falls back to `MONGO_URL`) | `mongodb://0.0.0.0:27017/ecommerce` |
+| `MONGODB_DB`   | Database name for search documents        | `search`                             |
+
 **Tip:** For local dev, copy `.env.example` (if present) and customize as needed.
 

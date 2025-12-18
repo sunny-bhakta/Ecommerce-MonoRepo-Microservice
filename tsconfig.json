@@ -1,25 +1,24 @@
 {
-  "compileOnSave": false,
   "compilerOptions": {
     "module": "commonjs",
-    "declaration": true,
+    "declaration": false,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "es2018",
+    "target": "es2021",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": ".",
+    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
     "paths": {
       "@app/common": ["libs/common/src"],
-      "@app/events": ["libs/events/src"]
+      "@app/common/*": ["libs/common/src/*"],
+      "@app/events": ["libs/events/src"],
+      "@app/events/*": ["libs/events/src/*"]
     }
-  },
-  "include": ["apps/**/*.ts", "libs/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  }
 }
-

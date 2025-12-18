@@ -10,7 +10,7 @@ Purpose: manage categories, products, and variants (attributes, SKU/price/stock 
 - Key endpoints:
   - `GET /health`
   - `POST /categories`, `GET /categories`
-  - `POST /products`, `GET /products`, `GET /products/:id`
+  - `POST /products`, `GET /products`, `GET /products/:id`, `PATCH /products/:id`
   - `POST /products/:productId/variants`, `GET /products/:productId/variants`
 - Notes: Uses MongoDB via Mongoose; validation via class-validator; admin writes routed through the gateway.
 
@@ -23,4 +23,5 @@ Purpose: manage categories, products, and variants (attributes, SKU/price/stock 
 - Products can define `options` (array of `{ name, values[] }`). Variant attributes must use only these option names and allowed values.
 - Variant option combinations are validated for uniqueness per product.
 - Set `CATALOG_USE_VARIANT_COLLECTION=true` to store variants in a dedicated `variants` collection (prefer for products with many variants). Default keeps variants embedded on the product document.
+- Updating a product via `PATCH /products/:id` can also replace option definitions; existing variants are normalized against the new definitions and validation will fail if the new options invalidate current variants.
 

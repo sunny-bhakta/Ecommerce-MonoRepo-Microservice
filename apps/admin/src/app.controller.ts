@@ -3,7 +3,7 @@ import { AppService } from './app.service';
 import { CreateAdminActionDto } from './dto/create-admin-action.dto';
 import { UpdateAdminActionDto } from './dto/update-admin-action.dto';
 
-@Controller()
+@Controller('admin')
 export class AdminController {
   constructor(private readonly appService: AppService) {}
 

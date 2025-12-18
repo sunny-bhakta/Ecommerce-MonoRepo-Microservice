@@ -4,7 +4,7 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { FlagReviewDto } from './dto/flag-review.dto';
 import { ModerateReviewDto } from './dto/moderate-review.dto';
 
-@Controller()
+@Controller('review')
 export class ReviewController {
   constructor(private readonly appService: AppService) {}
 

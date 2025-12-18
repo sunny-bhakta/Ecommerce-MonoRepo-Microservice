@@ -35,6 +35,7 @@ import { WebpushRegistrationDto } from './dto/webpush-registration.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { AuthLoginDto, RegisterVendorDto } from './dto/auth.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 type DownstreamService =
   | 'order'
@@ -158,6 +159,8 @@ interface SearchDocument {
   title: string;
   description?: string;
   tags: string[];
+  type: 'product' | 'category' | 'general';
+  metadata: Record<string, unknown>;
 }
 
 interface Review {
@@ -215,7 +218,8 @@ const DEFAULT_SERVICE_URLS: Record<DownstreamService, string> = {
   catalog: 'http://localhost:3040',
   vendor: 'http://localhost:3030',
   inventory: 'http://localhost:3050',
-  shipping: 'http://localhost:3080',
+  // shipping: 'http://localhost:3080', temporary
+  shipping: 'http://localhost:4080',
   search: 'http://localhost:3120',
   analytics: 'http://localhost:3100',
   admin: 'http://localhost:3110',
@@ -573,6 +577,24 @@ export class AppService {
     );
   }
 
+  async updateProduct(productId: string, dto: UpdateProductDto, user: AuthenticatedUser) {
+    const isAdmin = user.roles?.includes('admin');
+    const isVendor = user.roles?.includes('vendor');
+
+    if (isVendor && !isAdmin) {
+      const product = await this.getProduct(productId);
+      if (product.vendorId && product.vendorId !== user.id) {
+        throw new BadGatewayException('Cannot modify another vendor product');
+      }
+    }
+
+    return this.patchToService<CatalogProduct>(
+      this.composeServiceUrl('catalog', `/products/${productId}`),
+      dto,
+      'catalog service',
+    );
+  }
+
   async listVariants(productId: string) {
     return this.getFromService<CatalogVariant[]>(
       this.composeServiceUrl('catalog', `/products/${productId}/variants`),
@@ -707,6 +729,14 @@ export class AppService {
     return this.postToService<SearchDocument>(
       this.composeServiceUrl('search', '/index'),
       dto,
+      'search service',
+    );
+  }
+
+  async seedSearchData() {
+    return this.postToService(
+      this.composeServiceUrl('search', '/seed'),
+      {},
       'search service',
     );
   }

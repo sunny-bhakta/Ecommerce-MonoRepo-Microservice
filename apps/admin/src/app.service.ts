@@ -1,70 +1,81 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { CreateAdminActionDto } from './dto/create-admin-action.dto';
 import { UpdateAdminActionDto } from './dto/update-admin-action.dto';
-
-interface AdminAction {
-  id: string;
-  targetType: CreateAdminActionDto['targetType'];
-  targetId: string;
-  actionType: CreateAdminActionDto['actionType'];
-  status: 'pending' | 'in_progress' | 'completed' | 'rejected';
-  note?: string;
-  resolutionNote?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { AdminActionDocument, AdminActionEntity } from './schemas/admin_actions.schema';
 
 @Injectable()
 export class AppService {
-  private actions: AdminAction[] = [];
+  constructor(
+    @InjectModel(AdminActionEntity.name)
+    private readonly actionModel: Model<AdminActionEntity>,
+  ) {}
 
-  health() {
+  async health() {
+    const count = await this.actionModel.estimatedDocumentCount().exec();
     return {
       service: 'admin',
       status: 'ok',
-      actions: this.actions.length,
+      actions: count,
       timestamp: new Date().toISOString(),
     };
   }
 
-  createAction(dto: CreateAdminActionDto): AdminAction {
-    const now = new Date().toISOString();
-    const action: AdminAction = {
-      id: randomUUID(),
+  async createAction(dto: CreateAdminActionDto) {
+    const created = await this.actionModel.create({
       targetType: dto.targetType,
       targetId: dto.targetId,
       actionType: dto.actionType,
       status: 'pending',
       note: dto.note,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.actions.push(action);
-    return action;
-  }
-
-  listActions(status?: AdminAction['status'], targetType?: AdminAction['targetType']) {
-    return this.actions.filter((a) => {
-      const matchStatus = status ? a.status === status : true;
-      const matchType = targetType ? a.targetType === targetType : true;
-      return matchStatus && matchType;
     });
+    return this.toResponse(created);
   }
 
-  updateAction(id: string, dto: UpdateAdminActionDto): AdminAction {
-    const action = this.getAction(id);
-    action.status = dto.status;
-    action.resolutionNote = dto.resolutionNote;
-    action.updatedAt = new Date().toISOString();
-    return action;
+  async listActions(status?: string, targetType?: string) {
+    const filters: Record<string, unknown> = {};
+    if (status) filters.status = status;
+    if (targetType) filters.targetType = targetType;
+
+    const actions = await this.actionModel.find(filters).lean().exec();
+    return actions.map(this.toResponse);
   }
 
-  private getAction(id: string): AdminAction {
-    const found = this.actions.find((a) => a.id === id);
-    if (!found) {
+  async updateAction(id: string, dto: UpdateAdminActionDto) {
+    const updated = await this.actionModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            status: dto.status,
+            resolutionNote: dto.resolutionNote,
+          },
+        },
+        { new: true },
+      )
+      .lean()
+      .exec();
+
+    if (!updated) {
       throw new NotFoundException('Admin action not found');
     }
-    return found;
+
+    return this.toResponse(updated);
+  }
+
+  private toResponse(doc: any) {
+    const json = 'toJSON' in doc ? doc.toJSON() : doc;
+    return {
+      id: json._id.toString(),
+      targetType: json.targetType,
+      targetId: json.targetId,
+      actionType: json.actionType,
+      status: json.status,
+      note: json.note,
+      resolutionNote: json.resolutionNote,
+      createdAt: json.createdAt,
+      updatedAt: json.updatedAt,
+    };
   }
 }

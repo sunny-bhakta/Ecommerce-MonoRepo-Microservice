@@ -1,81 +1,85 @@
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { Injectable } from '@nestjs/common';
 import { IngestEventDto } from './dto/ingest-event.dto';
+import { AnalyticsMetricDocument, AnalyticsMetricEntity } from './schemas/analytics_metrics_schema';
 
-interface Counters {
-  orders: number;
-  payments: number;
-  shipments: number;
-}
-
-interface Totals {
-  gmv: number;
-  paymentsTotal: number;
-  shipmentsTotal: number;
-}
 
 @Injectable()
 export class AppService {
-  private counters: Counters = {
-    orders: 0,
-    payments: 0,
-    shipments: 0,
-  };
+  private readonly metricsKey = 'global';
 
-  private totals: Totals = {
-    gmv: 0,
-    paymentsTotal: 0,
-    shipmentsTotal: 0,
-  };
+  constructor(
+    @InjectModel(AnalyticsMetricEntity.name)
+    private readonly metricModel: Model<AnalyticsMetricDocument>,
+  ) {}
 
-  private paymentAttempts = 0;
-  private orderValues: number[] = [];
+  private async getMetricsDoc(): Promise<AnalyticsMetricDocument> {
+    let doc = await this.metricModel.findOne({ key: this.metricsKey }).exec();
+    if (!doc) {
+      doc = await this.metricModel.create({ key: this.metricsKey });
+    }
+    return doc;
+  }
 
-  health() {
+  async health() {
+    const metrics = await this.metricModel.findOne({ key: this.metricsKey }).lean().exec();
     return {
       service: 'analytics',
       status: 'ok',
-      orders: this.counters.orders,
-      payments: this.counters.payments,
-      shipments: this.counters.shipments,
+      orders: metrics?.orders ?? 0,
+      payments: metrics?.payments ?? 0,
+      shipments: metrics?.shipments ?? 0,
       timestamp: new Date().toISOString(),
     };
   }
 
-  ingest(dto: IngestEventDto) {
+  async ingest(dto: IngestEventDto) {
+    const inc: Record<string, number> = {};
+    const amount = dto.amount ?? 0;
+
     if (dto.type === 'order') {
-      this.counters.orders += 1;
-      if (dto.amount) {
-        this.totals.gmv += dto.amount;
-        this.orderValues.push(dto.amount);
+      inc.orders = 1;
+      if (amount) {
+        inc.gmv = amount;
       }
     } else if (dto.type === 'payment') {
-      this.counters.payments += 1;
-      this.paymentAttempts += 1;
-      if (dto.amount) {
-        this.totals.paymentsTotal += dto.amount;
+      inc.payments = 1;
+      inc.paymentAttempts = 1;
+      if (amount) {
+        inc.paymentsTotal = amount;
       }
     } else if (dto.type === 'shipment') {
-      this.counters.shipments += 1;
-      if (dto.amount) {
-        this.totals.shipmentsTotal += dto.amount;
+      inc.shipments = 1;
+      if (amount) {
+        inc.shipmentsTotal = amount;
       }
     }
+
+    await this.metricModel.updateOne(
+      { key: this.metricsKey },
+      { $inc: inc },
+      { upsert: true },
+    );
+
     return { accepted: true };
   }
 
-  metrics() {
-    const totalOrders = this.counters.orders;
-    const totalGmv = this.totals.gmv;
-    const aov = totalOrders ? totalGmv / totalOrders : 0;
+  async metrics() {
+    const metrics = await this.getMetricsDoc();
+    const totalOrders = metrics.orders;
+    const totalGmv = metrics.gmv;
+    const avgOrderValue = totalOrders ? totalGmv / totalOrders : 0;
+
     return {
       summary: {
         orders: totalOrders,
-        payments: this.counters.payments,
-        shipments: this.counters.shipments,
+        payments: metrics.payments,
+        shipments: metrics.shipments,
       },
       gmv: totalGmv,
-      avgOrderValue: aov,
-      paymentAttempts: this.paymentAttempts,
+      avgOrderValue,
+      paymentAttempts: metrics.paymentAttempts,
       updatedAt: new Date().toISOString(),
     };
   }

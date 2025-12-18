@@ -19,4 +19,10 @@ Webpush: integrate VAPID + real push delivery
   - Add a microservice message interceptor for RMQ once queues are enabled.
   - Extend domain-event logging to other services’ critical paths.
 
-- Add shipping address in checkout
+- Add shipping address in checkout, make it dynamic
+
+- search:
+  - add product/category data in search in realtim
+
+- analytic:
+  - add realtime analytics data
