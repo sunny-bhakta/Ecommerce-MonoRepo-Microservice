@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   await bootstrapHttpService(AppModule, {
     serviceName: 'shipping',
-    defaultPort: 3080,
+    defaultPort: 4080,
   });
 }
 
