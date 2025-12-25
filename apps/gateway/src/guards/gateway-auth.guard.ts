@@ -1,8 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 
-import { AuthClientService } from '../services/auth-client.service';
-import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
+import { AuthClientGatewayService } from '../services/auth-client.service';
+import { AuthenticatedUser } from '../interfaces/auth.interface';
 
 interface RequestWithUser extends Request {
   user?: AuthenticatedUser;
@@ -10,7 +10,7 @@ interface RequestWithUser extends Request {
 
 @Injectable()
 export class GatewayAuthGuard implements CanActivate {
-  constructor(private readonly authClient: AuthClientService) {}
+  constructor(private readonly authClient: AuthClientGatewayService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
@@ -30,6 +30,7 @@ export class GatewayAuthGuard implements CanActivate {
       return null;
     }
     const [type, token] = header.split(' ');
+    
     return type === 'Bearer' && token ? token : null;
   }
 }
