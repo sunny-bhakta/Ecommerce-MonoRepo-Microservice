@@ -1,4 +1,5 @@
-import { UserEntity, UserRole } from '../entities/user.entity';
+import { UserRole } from '@app/common/enums/user-role.enum';
+import { UserEntity } from '../entities/user.entity';
 
 export interface AuthenticatedUser {
   id: string;

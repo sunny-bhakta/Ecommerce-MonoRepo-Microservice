@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
-import { GatewayController } from './app.controller';
-import { AppService } from './app.service';
-import { AuthClientService } from './services/auth-client.service';
+import { AuthClientGatewayService, AuthGatewayService, GatewayHttpService } from './services';
+import { AuthGatewayController } from './controllers';
 import { GatewayAuthGuard } from './guards/gateway-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 
@@ -19,7 +18,15 @@ import { RolesGuard } from './guards/roles.guard';
       maxRedirects: 0,
     }),
   ],
-  controllers: [GatewayController],
-  providers: [AppService, AuthClientService, GatewayAuthGuard, RolesGuard],
+  controllers: [
+    AuthGatewayController
+  ],
+  providers: [
+    AuthGatewayService,
+    AuthClientGatewayService,
+    GatewayHttpService,
+    GatewayAuthGuard,
+    RolesGuard
+  ],
 })
 export class AppModule {}

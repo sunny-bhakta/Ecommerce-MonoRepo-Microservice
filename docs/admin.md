@@ -144,6 +144,7 @@ Suppose an admin needs to refund an order:
   ```
 
 This pattern applies to other actions (like approving reviews or blocking vendors) by changing the `type` and `targetId` in the request.
+
 ## Extending
 - Persist actions and add audit trail/history.
 - Add SLAs, assignment (owner), and notifications on status changes.

@@ -1,0 +1,15 @@
+export enum DownstreamApps  {
+  ORDER = 'order',
+  PAYMENT = 'payment',
+  USER = 'user',
+  AUTH = 'auth',
+  CATALOG = 'catalog',
+  VENDOR = 'vendor',
+  INVENTORY = 'inventory',
+  SHIPPING = 'shipping',
+  SEARCH = 'search',
+  ANALYTICS =  'analytics',
+  ADMIN = 'admin',
+  NOTIFICATION = 'notification',
+  REVIEW = 'review',
+}

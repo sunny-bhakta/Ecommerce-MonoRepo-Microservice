@@ -4,10 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import { lastValueFrom } from 'rxjs';
 import axios from 'axios';
 
-import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
+import { AuthenticatedUser } from '../interfaces/auth.interface';
 
 @Injectable()
-export class AuthClientService {
+export class AuthClientGatewayService {
   private readonly baseUrl: string;
 
   constructor(private readonly http: HttpService, configService: ConfigService) {
