@@ -1,5 +1,5 @@
 ## Variables
-@customeremail=alice@example.com
+@customeremail=customer1@example.com
 @customerpassword=Passw0rd!
 @customertoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDhiZDVlMS1iMTFiLTRhN2QtYmM2Mi03Mzk4MGE1MDAwM2UiLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiY3VzdG9tZXIiXSwiaWF0IjoxNzY1NDQ4MDc5LCJleHAiOjE3NjgwNDAwNzl9.4sIaPuXeGD5aImuvT4zVSxQH9xWmqKG0eFzL6DEsncc
 @adminemail=admin@example.com
@@ -7,9 +7,9 @@
 @adminfullname=Admin Example
 @adminroles=["admin"]
 @admintoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NTMwZTNlZS0zODQzLTRhZWUtODY2My01NTBjNWU3MjkwMTUiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiYWRtaW4iXSwiaWF0IjoxNzY1Mzc0ODcyLCJleHAiOjE3Njc5NjY4NzJ9.vaZT3vwy8h0zlbJituCB_VZ4z8pUyhI2fDPtuExKfxs
-@vendoremail=vendor@example.com
+@vendoremail=vendor1@example.com
 @vendorpassword=Passw0rd!
-@vendortoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjNzZkODQ2YS02MGUxLTQxYTQtOWRjNS05YmQzNmY4MDQ5NzkiLCJlbWFpbCI6InZlbmRvckBleGFtcGxlLmNvbSIsInJvbGVzIjpbInZlbmRvciJdLCJpYXQiOjE3NjU5NTkzMTQsImV4cCI6MTc2ODU1MTMxNH0.ms5PFNlKRJfxkl036m7kT52qRRJBlH8i5Fr2j3lgR-A
+@vendortoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2Y2VjZDZlNS03Y2JjLTQ5MGMtYjY4MS0wNGE4NTdiZjhhZTIiLCJlbWFpbCI6InZlbmRvcjFAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ2ZW5kb3IiXSwiaWF0IjoxNzY2MTU4NjU5LCJleHAiOjE3Njg3NTA2NTl9.hIX6ghFLlcBg0W603TG2d7SLDRswnxHYj4xVqsTE0ik
 @vendorfullname=Vendor Example
 @vendorroles=["vendor"]
 @orderId=bf11a4f9-33b4-4059-bb9f-63383fa93a40
@@ -23,33 +23,36 @@
 @vendorId={{vendorId}}
 @reviewId=6942ccbbe63dd4b76e5bea8b
 @actionId=6943d3111e4a7666a2228a6e
+@gatewayurl=http://localhost:3000
 
-# Auth Service (port 3010)
+# Auth Service Via Gateway
 ### Health
-GET http://localhost:3010/auth/health
+GET {{gatewayurl}}/auth/health
 
-### Register (example)
-POST http://localhost:3010/auth/register
+### Vendor Register (example)
+POST {{gatewayurl}}/auth/vendor/register
 Content-Type: application/json
 
 {
-  "email": "{{adminemail}}",
-  "password": "{{adminpassword}}",
-  "fullName": "{{adminfullname}}",
-  "roles": {{adminroles}}
+  "email": "{{vendoremail}}",
+  "password": "{{vendorpassword}}",
+  "fullName": "{{vendorfullname}}",
+  "roles": {{vendorroles}}
 }
 
-### Admin Login
-POST http://localhost:3010/auth/login
+### Customer Register (example)
+POST {{gatewayurl}}/auth/customer/register
 Content-Type: application/json
 
 {
-  "email": "{{adminemail}}",
-  "password": "{{adminpassword}}"
+  "email": "{{customeremail}}",
+  "password": "{{customerpassword}}",
+  "fullName": "Customer2 Adae",
+  "roles": ["customer"]
 }
 
 ### Customer Login
-POST http://localhost:3010/auth/login
+POST {{gatewayurl}}/auth/login
 Content-Type: application/json
 
 {
@@ -57,20 +60,9 @@ Content-Type: application/json
   "password": "{{customerpassword}}"
 }
 
-# Vendor Service (port 3030, via gateway 3000)
-### Vendor Register
-POST http://localhost:3000/auth/vendor/register
-Content-Type: application/json
-
-{
-  "email": "{{vendoremail}}",
-  "password": "{{vendorpassword}}",
-  "fullName": "{{vendorfullname}}"
-}
-
 
 ### Vendor Login
-POST http://localhost:3010/auth/login
+POST {{gatewayurl}}/auth/login
 Content-Type: application/json
 
 {
@@ -79,26 +71,36 @@ Content-Type: application/json
 }
 
 
-### Current User (admin)
-GET http://localhost:3010/auth/me
-Authorization: Bearer {{admintoken}}
+### Current User (admin / vendor / customer)
+GET {{gatewayurl}}/auth/me
+Authorization: Bearer {{vendortoken}}
 
-### Current User (customer)
+
+
+
+
+
+
+
+
+
+### Current User (admin / vendor / customer)
 GET http://localhost:3010/auth/me
-Authorization: Bearer {{customertoken}}
+Authorization: Bearer {{vendortoken}}
 
 ### Change Password
-PATCH http://localhost:3010/auth/password
+# PATCH http://localhost:3010/auth/password
+PATCH {{gatewayurl}}/auth/password
 Content-Type: application/json
-Authorization: Bearer {{admintoken}}
+Authorization: Bearer {{vendortoken}}
 
 {
-  "currentPassword": "{{adminpassword}}",
-  "newPassword": "NewPassw0rd!"
+  "currentPassword": "{{vendorpassword}}",
+  "newPassword": "{{vendorpassword}}"
 }
 
 ### Admin - List Users
-GET http://localhost:3010/auth/users
+GET {{gatewayurl}}/auth/users
 Authorization: Bearer {{admintoken}}
 
 

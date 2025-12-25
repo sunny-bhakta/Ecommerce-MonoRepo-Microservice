@@ -39,7 +39,7 @@ export async function bootstrapHttpService(
 
   if (options.enableMicroservice ?? true) {
     //todo uncomment this when rmq is ready
-    connectRmqMicroservice(app, configService, options.serviceName);
+    // connectRmqMicroservice(app, configService, options.serviceName);
     await app.startAllMicroservices();
   }
 
@@ -84,8 +84,6 @@ function createRmqOptions(
   const envKey = `${serviceName.toUpperCase()}_QUEUE`;
   const rmqUrl = overrideUrl ?? envResolver?.('RABBITMQ_URL') ?? process.env.RABBITMQ_URL ?? 'amqp://localhost:5672';
   const queue = envResolver?.(envKey) ?? process.env[envKey] ?? `${serviceName}_queue`;
-  // console.log("#000008111112 => ", rmqUrl, queue, queue);
-  // console.log("#000008111113 => ", process.env.RABBITMQ_URL);
   return {
     transport: Transport.RMQ,
     options: {
