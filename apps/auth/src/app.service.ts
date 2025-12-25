@@ -10,23 +10,21 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 
-import { LoginDto } from './dto/login.dto';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import {
   AuthResponse,
   AuthenticatedUser,
   AuthTokens,
   mapUserToAuthUser,
 } from './dto/user.dto';
-import { UserEntity, UserRole } from './entities/user.entity';
+import { UserEntity } from './entities/user.entity';
 import {
   AUTH_BCRYPT_ROUNDS,
   AUTH_JWT_SECRET,
-  DEFAULT_BCRYPT_ROUNDS,
-  DEFAULT_JWT_EXPIRES_IN_SECONDS,
+  DEFAULT_BCRYPT_ROUNDS
 } from './auth.constants';
 import { resolveJwtExpiresInSeconds } from './utils/jwt-expiry.util';
+import { ChangePasswordDto, LoginDto, RegisterUserDto } from '@app/common/dto';
+import { UserRole } from '@app/common/enums';
 
 @Injectable()
 export class AppService {
