@@ -145,8 +145,30 @@ Suppose an admin needs to refund an order:
 
 This pattern applies to other actions (like approving reviews or blocking vendors) by changing the `type` and `targetId` in the request.
 
-## Extending
-- Persist actions and add audit trail/history.
-- Add SLAs, assignment (owner), and notifications on status changes.
-- Integrate with review/payment/order systems for linked workflows.
+## TODO / Improvements
+
+1. [ ] **Persistent storage & audit log**
+  - [ ] Replace the in-memory array with a DB (TypeORM + SQLite/Postgres).
+  - [ ] Create `AdminAction` + `AdminActionEvent` entities and repositories.
+  - [ ] Expose `GET /admin/actions/:id/events` to show history.
+
+2. [ ] **Assignment & SLA management**
+  - [ ] Add `assignedTo`, `dueAt`, `priority` fields to actions.
+  - [ ] Build background checks for overdue actions that notify assignees via notification service or email.
+  - [ ] Add webhook/email hooks on status transitions (e.g., `PENDING → COMPLETED`).
+
+3. [ ] **Downstream orchestration**
+  - [ ] For each action type (e.g., `APPROVE_REVIEW`, `REFUND`, `BLOCK_VENDOR`), define adapters to call the relevant service (Review, Payment, Vendor).
+  - [ ] Implement retries/backoff and error handling so admin statuses stay in sync with downstream outcomes.
+  - [ ] Record downstream response metadata in the action’s history for auditing.
+
+4. [ ] **Security & governance**
+  - [ ] Gate admin endpoints with role-based guards and rate limits.
+  - [ ] Mask PII in logs and add structured logging for every action change.
+  - [ ] Add audit exports (CSV/JSON) for compliance teams.
+
+5. [ ] **Productization extras**
+  - [ ] Build filters/pagination (`status`, `type`, `assignedTo`, `targetId`).
+  - [ ] Add search/autocomplete for targets (orders, users, vendors).
+  - [ ] Create notification templates for common updates.
 

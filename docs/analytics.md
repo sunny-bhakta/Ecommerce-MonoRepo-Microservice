@@ -16,3 +16,25 @@ Purpose: ingest order/payment/shipment events and expose aggregates (placeholder
 - Add dashboards/queries for funnels, retention, and cohort analysis.
 - Wire ingestion to real event bus (Kafka/Rabbit) instead of HTTP.
 
+## TODO / Improvements
+
+1. [ ] **Durable event storage & rollups**
+  - [ ] Choose a persistence layer (Timescale/Postgres or ClickHouse) and capture raw events.
+  - [ ] Schedule rollups for GMV/AOV/payment attempts with hourly/daily granularity.
+
+2. [ ] **Event ingestion pipeline**
+  - [ ] Add Kafka/Rabbit consumer to ingest events instead of HTTP-only ingest.
+  - [ ] Implement dead-letter/retry handling for malformed events.
+
+3. [ ] **Dashboards & APIs**
+  - [ ] Expose richer `/analytics/metrics` filters (by service, date range, channel).
+  - [ ] Add funnel/retention/cohort endpoints powering frontend dashboards.
+
+4. [ ] **Data governance**
+  - [ ] Define schemas/contracts for event payloads and enforce validation.
+  - [ ] Add PII scrubbing/anonymization policies before storing events.
+
+5. [ ] **Operations & monitoring**
+  - [ ] Add alerting when ingestion or rollups fall behind.
+  - [ ] Export metrics (Prometheus/OpenTelemetry) for processing lag and error rates.
+

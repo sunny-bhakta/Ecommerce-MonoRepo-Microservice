@@ -41,7 +41,9 @@
     "start:dev:core1": "npm-run-all --parallel start:dev:gateway start:dev:auth start:dev:user start:dev:vendor start:dev:catalog start:dev:inventory start:dev:order start:dev:payment start:dev:shipping start:dev:review start:dev:analytics start:dev:admin start:dev:search",
     "start:pro:core": "npm-run-all --parallel start:dev:gateway start:pro:auth",
     "start:debug:gateway": "npm run start:pro:gateway -- --inspect=9229",
-    "test": "echo \"Error: no test specified\" && exit 1",
+  "test": "npm run test:catalog:helpers && npm run test:gateway:http",
+  "test:catalog:helpers": "ts-node --project tsconfig.json apps/catalog/src/services/product/__tests__/product-helpers.spec.ts",
+  "test:gateway:http": "ts-node --project tsconfig.json apps/gateway/src/services/__tests__/gateway-http.service.spec.ts",
     "lint": "eslint \"apps/**/src/**/*.{ts,tsx}\" --max-warnings=0"
   },
   "keywords": [],
@@ -59,7 +61,14 @@
     "@nestjs/mongoose": "^11.0.4",
     "@nestjs/passport": "^11.0.1",
     "@nestjs/platform-express": "^11.1.9",
+    "@nestjs/swagger": "^11.2.3",
     "@nestjs/typeorm": "^11.0.0",
+  "@opentelemetry/api": "^1.9.0",
+  "@opentelemetry/auto-instrumentations-node": "^0.52.0",
+  "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+  "@opentelemetry/resources": "^1.9.0",
+  "@opentelemetry/sdk-node": "^0.55.0",
+  "@opentelemetry/semantic-conventions": "^1.26.0",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^0.10.3",
     "bcrypt": "^5.1.1",
@@ -75,6 +84,7 @@
     "rxjs": "^7.8.2",
     "sqlite3": "^5.1.7",
     "stripe": "^16.12.0",
+    "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.28"
   },
   "devDependencies": {
