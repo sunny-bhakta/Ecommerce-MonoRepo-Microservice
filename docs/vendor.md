@@ -69,3 +69,25 @@ Service that owns vendor onboarding, profile data, and KYC status. It is exposed
 - Service logic & in-memory store: `apps/vendor/src/app.service.ts`.
 - DTO validation: `apps/vendor/src/dto/create-vendor.dto.ts`, `apps/vendor/src/dto/update-vendor.dto.ts`.
 
+## TODO / Improvements
+
+1. [ ] **Database-backed persistence**
+  - [ ] Replace in-memory array with TypeORM/Prisma + PostgreSQL (or SQLite) and migrations.
+  - [ ] Enforce unique email/company constraints and add pagination filters.
+
+2. [ ] **KYC workflow**
+  - [ ] Store document metadata/uploads, track review status, and expose admin approval endpoints.
+  - [ ] Integrate with notification service to alert vendors about approvals/rejections.
+
+3. [ ] **Authorization & gateway integration**
+  - [ ] Ensure vendor JWTs are required for vendor-specific endpoints; admins retain override access.
+  - [ ] Audit logs for profile changes (who/when/what).
+
+4. [ ] **Vendor analytics & dashboards**
+  - [ ] Expose endpoints for vendor performance (orders, revenue, cancellations) pulling from order/analytics services.
+  - [ ] Add caching/aggregation for dashboard metrics.
+
+5. [ ] **Payout & commission setup**
+  - [ ] Capture bank/UPI details securely and integrate with payment service for payouts.
+  - [ ] Configure commission tiers per vendor with effective dates.
+

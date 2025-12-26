@@ -51,3 +51,8 @@ Env vars (optional): `RABBITMQ_URL`, `EMAIL_PROVIDER_URL`, `SMS_PROVIDER_URL`.
 - Gateway orchestration and endpoints: `docs/gateway-orchestration.md`
 - Requirements overview: `docs/Requiremnt.md`
 
+
+## Test Result In File
+```
+cmd.exe /d /c "cd /d c:\Users\sunnykumar.bhakta\sunny-dev\conepts\project\Ecommerce-Microservice && npm run test:catalog:helpers > test-output.txt 2>&1"
+```

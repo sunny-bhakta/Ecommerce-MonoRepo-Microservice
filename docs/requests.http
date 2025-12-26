@@ -18,6 +18,7 @@
 @shipmentId={{shipmentId}}
 @productId=694267746da85e335a182fd2
 @categoryId=6942656c6da85e335a182fcc
+@subcategoryId=694d06cb43e32999576a8a7f
 @warehouseId=693a8ccb2a9805d132b75df9
 @userId={{userId}}
 @vendorId={{vendorId}}
@@ -122,8 +123,36 @@ Authorization: Bearer {{admintoken}}
 
 { "name": "Shoes" }
 
+#### Create sub-category (admin)
+# POST http://localhost:3000/catalog/categories
+POST http://localhost:3040/catalog/categories
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{
+  "name": "Running Shoes",
+  "parentId": "{{categoryId}}"
+}
+
+#### Create sub-sub-category (admin)
+# Update @subcategoryId (top of file) with the ID returned from the sub-category creation response before running this request.
+# POST http://localhost:3000/catalog/categories
+POST http://localhost:3040/catalog/categories
+Content-Type: application/json
+Authorization: Bearer {{admintoken}}
+
+{
+  "name": "Marathon Running",
+  "parentId": "{{subcategoryId}}"
+}
+
 #### List categories
-GET http://localhost:3000/catalog/categories
+# GET http://localhost:3000/catalog/categories
+GET http://localhost:3040/catalog/categories
+
+#### List category tree (all nested levels)
+# GET http://localhost:3000/catalog/categories/tree
+GET http://localhost:3040/catalog/categories/tree
 
 #### Create product (admin)
 POST http://localhost:3000/catalog/products

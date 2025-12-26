@@ -30,3 +30,25 @@ Purpose: document indexing/search with MongoDB persistence.
 - Add background indexing pipeline fed from catalog/ordering events.
 - Expand seed data or wire to catalog events to keep product/category metadata fresh.
 
+## TODO / Improvements
+
+1. [ ] **Search engine upgrade**
+  - [ ] Evaluate Elasticsearch/Meilisearch for better ranking, pagination, and scoring.
+  - [ ] Migrate indexing/query code to new engine with zero-downtime strategy.
+
+2. [ ] **Rich query capabilities**
+  - [ ] Add facets, filters, and highlighting support.
+  - [ ] Implement typo tolerance and synonym support for better UX.
+
+3. [ ] **Indexing pipeline**
+  - [ ] Build background consumers that ingest catalog/order events to keep the index fresh.
+  - [ ] Add reindex tooling and versioned schemas for safe migrations.
+
+4. [ ] **Content freshness**
+  - [ ] Wire periodic sync with catalog service to refresh price/inventory metadata.
+  - [ ] Expand seed data and provide admin APIs for bulk imports.
+
+5. [ ] **Observability & alerts**
+  - [ ] Track indexing lag, query latency, and error rates.
+  - [ ] Alert when freshness guarantees are violated.
+

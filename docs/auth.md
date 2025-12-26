@@ -46,4 +46,28 @@ Environment variables are read via `ConfigService`:
 - Device/session tracking: store active sessions with device metadata and revoke on logout.
 - Account protection: add MFA (TOTP/email OTP), lockout on repeated failures, and password history checks.
 
+## TODO / Improvements
+
+1. [ ] **Token lifecycle & sessions**
+	- [ ] Implement refresh tokens with revocation list + `/auth/refresh` endpoint.
+	- [ ] Track active sessions/devices and expose management APIs.
+
+2. [ ] **Security hardening**
+	- [ ] Add MFA support (TOTP/email OTP) and enforce password complexity/history.
+	- [ ] Implement account lockout/backoff on repeated failed logins.
+	- [ ] Add audit logging for login/logout/password changes.
+
+3. [ ] **Federated identity**
+	- [ ] Integrate OAuth/OIDC providers (Google, GitHub, etc.) with local JWT issuance.
+	- [ ] Support SSO callbacks and account linking/merging.
+
+4. [ ] **Role & policy management**
+	- [ ] Build admin endpoints/UI to manage roles dynamically instead of editing enums.
+	- [ ] Add policy-based access control (PBAC/ABAC) hooks for fine-grained rules.
+
+5. [ ] **Operational excellence**
+	- [ ] Move from SQLite to PostgreSQL (or managed DB) with migrations.
+	- [ ] Add observability (metrics for login rate, failures, latency) and alerting.
+	- [ ] Create load/perf tests for hash rounds + JWT issuance throughput.
+
 

@@ -18,6 +18,7 @@ import {
 } from '@app/events';
 import { ORDER_EVENTS_CLIENT } from './order.constants';
 import { logDomainEvent } from '@app/common';
+import { NotificationPublisher } from './notification.publisher';
 
 @Injectable()
 export class AppService {
@@ -31,6 +32,8 @@ export class AppService {
     @Inject(ORDER_EVENTS_CLIENT) private readonly orderEventClient: ClientProxy,
     private readonly http: HttpService,
     private readonly config: ConfigService,
+    private readonly notificationPublisher: NotificationPublisher,
+
   ) {}
 
   private readonly shippingServiceUrl =
@@ -62,7 +65,6 @@ export class AppService {
       });
 
       const saved = await this.orderRepository.save(order);
-      console.log("#0000081111663", saved);
       logDomainEvent(this.logger, {
         action: 'create',
         entity: 'order',
@@ -71,6 +73,16 @@ export class AppService {
         detail: { userId: saved.userId, total: saved.totalAmount, currency: saved.currency },
       });
       await this.emitOrderCreatedEvent(saved);
+
+      await this.notificationPublisher.publishOrderCreated({
+        event: 'order.created',
+        occurredAt: new Date().toISOString(),
+        orderId: order.id,
+        userId: order.userId,
+        totalAmount: order.totalAmount,
+        currency: order.currency,
+        items: order.items,
+      });
       console.log("#0000081111664 => ");
       return saved;
     } catch (error) {
