@@ -4,9 +4,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { APP_PIPE } from '@nestjs/core';
 import { CatalogController } from './app.controller';
 import { AppService } from './app.service';
-import { CategoryEntity, CategorySchema } from './schemas/category.schema';
-import { Product, ProductSchema } from './schemas/product.schema';
-import { VariantCollection, VariantCollectionSchema } from './schemas/variant-collection.schema';
+import { CategoryModule } from './services/category/category.module';
+import { ProductModule } from './services/product';
 
 @Module({
   imports: [
@@ -21,11 +20,8 @@ import { VariantCollection, VariantCollectionSchema } from './schemas/variant-co
         dbName: config.get<string>('MONGODB_DB') ?? 'catalog',
       }),
     }),
-    MongooseModule.forFeature([
-      { name: CategoryEntity.name, schema: CategorySchema },
-      { name: Product.name, schema: ProductSchema },
-      { name: VariantCollection.name, schema: VariantCollectionSchema },
-    ]),
+    CategoryModule,
+    ProductModule,
   ],
   controllers: [CatalogController],
   providers: [
