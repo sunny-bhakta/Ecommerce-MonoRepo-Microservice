@@ -13,6 +13,7 @@ import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEventsController } from './order.events.controller';
 import { ORDER_EVENTS_CLIENT } from './order.constants';
 import { HttpModule } from '@nestjs/axios';
+import { NotificationPublisher } from './notification.publisher';
 
 function ensureDirectoryExists(filePath: string): void {
   const dir = dirname(filePath);
@@ -65,6 +66,9 @@ function ensureDirectoryExists(filePath: string): void {
     }),
   ],
   controllers: [OrderController, OrderEventsController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    NotificationPublisher,
+  ],
 })
 export class AppModule {}
